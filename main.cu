@@ -144,7 +144,7 @@ bool termination(int n, int m, double x[n], double y[m], double z[m], double P[n
 
 
 // algorithm 3 solve kkt with PCG
-void solve_kkt(int n, int m, double x[n], double y[m], double z[m], double P[n][n], double Q[n], double A[m][n], double AT[n][m], double l[m], double u[m], double R[m][m], double xNext[n], double zNext[m], double rho, double sigma, double epsilon){
+void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n], double Q[n], double A[m][n], double AT[n][m], double l[m], double u[m], double R[m][m], double xNext[n], double zNext[m], double rho, double sigma, double epsilon){
     //todo Add a function to update rho in every 10 iterations
     double K[n][n], double I[n][n];
 
@@ -170,37 +170,40 @@ void solve_kkt(int n, int m, double x[n], double y[m], double z[m], double P[n][
     vecAdd(m, temp5, temp6, temp7); // temp7 = Rz - y;
     matMulVec(n, m, AT, temp7, temp8); // temp8 = A^T(Rz - y);
     scalarMulVec(n, sigma, x, temp9); // temp9 = sigma * x;
-    scalarMulVec(n, -1, q, temp10); // temp10 = -q;
+    scalarMulVec(n, -1, Q, temp10); // temp10 = -q;
     vecAdd(n, temp9, temp10, temp11); // temp11 = sigma * x - q;
     vecAdd(n, temp11, temp8, b); // b = sigma * x - q + A^T(Rz - y);
 
     //initialize r0=Kx-b, y0, p0
     double r[n];
-    MatMulVec(n, n, K, x, temp8); // temp8 = Kx;
+    matMulVec(n, n, K, x, temp8); // temp8 = Kx;
     scalarMulVec(n, -1, b, temp9); // temp9 = -b;
     vecAdd(n, temp8, temp9, r);
 
     //intitialize y0 = M^(-1)*r;
-    double y[n];
-    diagMatMulVec(n,n, MINV, r, y); // y0 = M^(-1)*r
+    double y_kkt[n];
+    diagMatMulVec(n,n, MINV, r, y_kkt); // y0 = M^(-1)*r
 
     // intitialize p0 = -y0;
     double p[n];
-    scalarMulVec(n, -1, y, p);
-    k = 0;
+    scalarMulVec(n, -1, y_kkt, p);
+    int k = 0;
 
-    while (norm2(r) > epsilon * norm2(b))
+    while (norm2(n,r) > epsilon * norm2(n,b))
     {
         //calculate a^k
         double alpha;
         double temp12, temp13;
-        temp12 = innerProduct(n, r, y); // calculate Numerator r^T * y;
+        temp12 = innerProduct(n, r, y_kkt); // calculate Numerator r^T * y;
         vecMulMat(n,n, p, K, temp8); // temp8 = p^T * K
         temp13 = innerProduct(n,temp8, p); // calculate denominator p^T * K * p;
         alpha = temp12 / temp13;
         //calculate x^k+1
         scalarMulVec(n, alpha, p, temp8);
-        vecAdd(n, alpha, temp8, alpha); // x = x + alpha * p;
+        if (k==0)
+            vecAdd(n, x, temp8, xNext); // x = x + alpha * p;
+        else
+            vecAdd(n, xNext, temp8, xNext);
         //calculate r^k+1
         double r[n];
         diagMatMulVec(n, n, K, p,temp8); // temp8 = K * p;
@@ -208,17 +211,18 @@ void solve_kkt(int n, int m, double x[n], double y[m], double z[m], double P[n][
         vecAdd(n, r, temp9, r);
         //calculate y^k+1
         double yNew[n];
-        diagMatMulVec(n, n, MINV, r, y); // y = M^(-1) * rNew;
+        diagMatMulVec(n, n, MINV, r, y_kkt); // y = M^(-1) * rNew;
         //calculate beta^k+1
         double beta;
-        temp13 = innerProduct(n, r, y); // calculate Numerator rNew^T * yNew;
+        temp13 = innerProduct(n, r, y_kkt); // calculate Numerator rNew^T * yNew;
         beta = temp13 / temp12; // beta = ( rNew^T * yNew) / ( r^T * y)
         //calculate p^k+1
-        scalarMulVec(n, -1, y, temp8); // temp8 = -y
+        scalarMulVec(n, -1, y_kkt, temp8); // temp8 = -y
         scalarMulVec(n, beta, p, temp9); // temp9 = beta * p;
         vecAdd(n, temp8, temp9, p);
         k+=1;
     }
+    matMulVec(m,n, A, xNext, zNext);
 }
 
 
@@ -242,10 +246,10 @@ int main() {
     double sigma = 0.000001, alpha=1.6, rho = 0.5;
     // initialize epsilon, now we assume epsilon is a constant
     // todo add a function to calculate epsilon in each iteration;
-    double epsilon = 0.00001
+    double epsilon = 0.00001;
     //eps = calc_eps();
     int k = 0;
-    while (!termination(n, m, x, y, z, P, Q, A, AT, eps))
+    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon))
     {
         double xNext[n], zNext[n];
         double R[m][m], RINV[m][m];
@@ -254,7 +258,7 @@ int main() {
         calculateR(R);
         inverseDiag(m, R, RINV);
 
-        solve_kkt(n, m, x, y, z, P, Q, A, AT, l,u, R, xNext, zNext, rho, sigma, epsilon);
+        solveKKT(n, m, x, y, z, P, Q, A, AT, l,u, R, xNext, zNext, rho, sigma, epsilon);
         // update x
         double temp1[n], temp2[n]
         scalarMulVec(n, alpha, xNext, temp1); // temp1 = alpha * xNext;
@@ -273,11 +277,11 @@ int main() {
         // update y
         scalarMulVec(m, -1, zNextReal, temp3); // temp3 = -zNextReal;
         vecAdd(m, temp6, temp3, temp4); // temp4 = alpha * zNext + (1 - alpha) * z - zNextReal;
-        matMulVec(m, m, R, temp4, temp5) // temp5 = R * (alpha * zNext + (1 - alpha) * z - zNextReal);
-        vecAdd(m, y, temp5, y) // y = y + temp5;
+        matMulVec(m, m, R, temp4, temp5); // temp5 = R * (alpha * zNext + (1 - alpha) * z - zNextReal);
+        vecAdd(m, y, temp5, y); // y = y + temp5;
 
         // update z^k to z^(k+1)
-        z = zNextReal // z = zNextReal
+        z = zNextReal; // z = zNextReal
         k += 1;
     }
     return 0;
