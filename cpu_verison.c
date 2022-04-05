@@ -194,7 +194,7 @@ double objValue(int n, double P[n][n], double q[n], double x[n])
 }
 
 // calculate if the program should terminate
-int termination(int n, int m, double x[n], double y[m], double z[m], double P[n][n], double Q[n], double A[m][n], double AT[n][m], double epsilon){
+int termination(int n, int m, double x[n], double y[m], double z[m], double P[n][n], double Q[n], double A[m][n], double AT[n][m], double epsilonPrimal, double epsilonDual){
     // temp1 = A*x
     double temp1[m], temp2[m], residualPrimal[m];
     //calculate residual of Primal
@@ -208,7 +208,7 @@ int termination(int n, int m, double x[n], double y[m], double z[m], double P[n]
     matMulVec(n, m, AT, y, temp4); // temp4 = A^T * y;
     vecAdd(n, temp3, temp4, temp5); // temp5 = temp3 + temp4;
     vecAdd(n, temp5, Q, residualDual); // residualDual = temp5 + Q;
-    if ((norm2(m, residualPrimal) <= epsilon) && (norm2(n, residualDual) <= epsilon))
+    if ((norm2(m, residualPrimal) <= epsilonPrimal) && (norm2(n, residualDual) <= epsilonDual))
         return 1;
     else
         return 0;
@@ -337,9 +337,11 @@ int main() {
     // initialize epsilon, now we assume epsilon is a constant
     // todo add a function to calculate epsilon in each iteration;
     double epsilon = 0.00001;
+    double epsilonPrimal = 0.0001;
+    double epsilonDual = 0.0001;
     //eps = calc_eps();
     int k = 0;
-    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon) && k <= 100)
+    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilonPrimal, epsilonDual) && k <= 100)
     {
         double xNext[n], zNext[n];
         double R[m][m], RINV[m][m];
