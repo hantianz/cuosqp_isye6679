@@ -13,6 +13,7 @@
 //
 //}
 
+
 // calculate inverse of a diagonal matrix A and store it in matrix B
 void inverseDiag(int n, double A[n][n], double B[n][n]){
     memset(B, 0, sizeof(B));
@@ -183,6 +184,14 @@ void calculatePrecond(int n, double K[n][n], double M[n][n]){
         M[i][i] = K[i][i];
 }
 
+// calculate objective value obj = 1/2 * x^T * P * x + q^T * X
+double objValue(int n, double P[n][n], double q[n], double x[n])
+{
+    double temp[n];
+    vecMulMat(n,n,x,P,temp);
+    double obj = 0.5 * innerProduct(n, temp, x) + innerProduct(n, q, x);
+    return obj;
+}
 
 // calculate if the program should terminate
 int termination(int n, int m, double x[n], double y[m], double z[m], double P[n][n], double Q[n], double A[m][n], double AT[n][m], double epsilon){
@@ -330,12 +339,10 @@ int main() {
     double epsilon = 0.00001;
     //eps = calc_eps();
     int k = 0;
-    int iter = 0;
-    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon) && iter <= 100)
+    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon) && k <= 100)
     {
         double xNext[n], zNext[n];
         double R[m][m], RINV[m][m];
-        iter += 1;
         //calculate the penalty matrix R and its inverse RINV
         calculateR(m, R, l, u, rho);
         inverseDiag(m, R, RINV);
@@ -364,8 +371,9 @@ int main() {
 
         // update z^k to z^(k+1)
         memcpy(z, zNextReal, sizeof(zNextReal)); // z = zNextReal
+        printf("Round:%d, x1:%.6f, x2:%.6f, obj:%.6f\n", k, x[0], x[1], objValue(n,P,Q,x));
         k += 1;
+
     }
-    printf("%f,%f\n", x[0], x[1]);
     return 0;
 }
