@@ -6,12 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#define INF (1 << 30)
+
 //void get_input(int n, int m, double P[n][n], double Q[n], double l[m], double u[m], double A[m][n], double AT[n][m]){
 //
 //}
 
 // calculate inverse of a diagonal matrix A and store it in matrix B
 void inverseDiag(int n, double A[n][n], double B[n][n]){
+    memset(B, 0, sizeof(B));
     for (int i =0; i < n; ++i)
     {
         B[i][i] = 1.0 / A[i][i];
@@ -21,12 +25,13 @@ void inverseDiag(int n, double A[n][n], double B[n][n]){
 // calculate transpose of a matrix A and store it in matrix B
 void transpose(int n, int m, double A[n][m], double B[m][n]){
     for (int i = 0; i < n; ++i)
-        for (int j = 0; i < m; ++j)
+        for (int j = 0; j < m; ++j)
             B[j][i] = A[i][j];
 }
 
 // fill a diagonal n*n matrix A with val on each diagonal entry
 void initializeDiagMat(int n, double val, double A[n][n]){
+    memset(A, 0, sizeof(A));
     for (int i = 0; i < n; ++i)
         A[i][i] = val;
 }
@@ -44,7 +49,7 @@ void matMulMat(int n, int m, int t, double A[n][m], double B[m][t], double C[n][
 // calculate A*B and store it in C, B is diagonal
 void matMulDiagMat(int n, int m, double A[n][m], double B[m][m], double C[n][m]){
     for (int i = 0; i < n; ++i)
-        for (int j = 0; i < m; ++j)
+        for (int j = 0; j < m; ++j)
         {
             C[i][j] = A[i][j] * B[j][j];
         }
@@ -53,7 +58,7 @@ void matMulDiagMat(int n, int m, double A[n][m], double B[m][m], double C[n][m])
 // calculate A*B and store it in C, A is diagonal
 void diagMatMulMat(int n, int m, double A[n][n], double B[n][m], double C[n][m]){
     for (int i = 0; i < n; ++i)
-        for (int j = 0; i < m; ++j)
+        for (int j = 0; j < m; ++j)
         {
             C[i][j] = B[i][j] * A[i][i];
         }
@@ -147,7 +152,7 @@ double norm2(int n, double A[n]){
     double squared_sum = 0.0;
     for (int i = 0; i < n; ++i)
         squared_sum += A[i] * A[i];
-    norm = sqrt(squared_sum);
+    norm = sqrt(squared_sum/n);
     return norm;
 }
 
@@ -163,6 +168,7 @@ double normInf(int n, double A[n]){
 
 // if l==u, penalty = 1000*rho, otherwise penalty = rho
 void calculateR(int n, double R[n][n], double l[n], double u[n], double rho){
+    memset(R, 0, sizeof(R));
     for (int i = 0; i < n; ++i)
         if (l[i] == u[i])
             R[i][i] = rho * 1000;
@@ -172,6 +178,7 @@ void calculateR(int n, double R[n][n], double l[n], double u[n], double rho){
 
 //get diagonal element of K into M
 void calculatePrecond(int n, double K[n][n], double M[n][n]){
+    memset(M, 0, sizeof(M));
     for (int i = 0; i < n; ++i)
         M[i][i] = K[i][i];
 }
@@ -243,8 +250,9 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
     double p[n];
     scalarMulVec(n, -1, y_kkt, p);
     int k = 0;
-
-    while (norm2(n,r) > epsilon * norm2(n,b))
+    double normR = norm2(n,r);
+    double normB = norm2(n,b);
+    while (normR > epsilon * normB)
     {
         //calculate a^k
         double alpha;
@@ -260,7 +268,7 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         else
             vecAdd(n, xNext, temp8, xNext);
         //calculate r^k+1
-        double r[n];
+        double rNew[n];
         diagMatMulVec(n, n, K, p,temp8); // temp8 = K * p;
         scalarMulVec(n,alpha, temp8, temp9); // temp9 = alpha * K * p;
         vecAdd(n, r, temp9, r);
@@ -276,6 +284,7 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         scalarMulVec(n, beta, p, temp9); // temp9 = beta * p;
         vecAdd(n, temp8, temp9, p);
         k+=1;
+        normR = norm2(n,r);
     }
     matMulVec(m,n, A, xNext, zNext);
 }
@@ -287,9 +296,26 @@ int main() {
     int n,m;
     //get n and m
     // input
+    //case 1
+    n = 2;
+    m = 2;
     double P[n][n],Q[n], A[m][n], AT[n][m], l[m],u[m];
+    // case 1
+    P[0][0] = 0.01;
+    P[0][1] = 0.0;
+    P[1][0] = 0.0;
+    P[1][1] = 0.2889654;
+    Q[0] = -1.07296862;
+    Q[1] = 0.86540763;
+    A[0][0] = 0.0;
+    A[0][1] = 0.0;
+    A[1][0] = 0.0;
+    A[1][1] = -2.3015387;
+    l[0] = 0 - INF;
+    l[1] = 0 - INF;
+    u[0] = 0.22957721;
+    u[1] = -2.11756839;
     //get_input(P,Q,l,u,A);
-
     //get AT = A^T
     transpose(m,n, A, AT);
     //initialize x,y,z
@@ -304,11 +330,12 @@ int main() {
     double epsilon = 0.00001;
     //eps = calc_eps();
     int k = 0;
-    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon))
+    int iter = 0;
+    while (!termination(n, m, x, y, z, P, Q, A, AT, epsilon) && iter <= 100)
     {
         double xNext[n], zNext[n];
         double R[m][m], RINV[m][m];
-
+        iter += 1;
         //calculate the penalty matrix R and its inverse RINV
         calculateR(m, R, l, u, rho);
         inverseDiag(m, R, RINV);
@@ -339,5 +366,6 @@ int main() {
         memcpy(z, zNextReal, sizeof(zNextReal)); // z = zNextReal
         k += 1;
     }
+    printf("%f,%f\n", x[0], x[1]);
     return 0;
 }
