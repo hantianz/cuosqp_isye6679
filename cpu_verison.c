@@ -9,9 +9,43 @@
 
 #define INF (1 << 30)
 
-//void get_input(int n, int m, double P[n][n], double Q[n], double l[m], double u[m], double A[m][n], double AT[n][m]){
-//
-//}
+void get_input(int n, int m, double P[n][n], double Q[n], double l[m], double u[m], double A[m][n]){
+    FILE *myfile;
+    int i;
+    int j;
+
+    myfile=fopen("case2.txt", "r");
+
+    for(i = 0; i < n; i++)
+    {
+        for (j = 0 ; j < m; j++)
+        {
+            fscanf(myfile,"%lf",A[i]+j);
+        }
+    }
+
+    for(i = 0; i < n; i++)
+    {
+        for (j = 0 ; j < n; j++)
+        {
+            fscanf(myfile,"%lf",P[i]+j);
+        }
+    }
+
+    for(i = 0; i < n; i++)
+    {
+        fscanf(myfile,"%lf",Q+i);
+    }
+
+    for(i = 0; i < m; i++)
+    {
+        fscanf(myfile,"%lf",u+i);
+    }
+
+    for (i = 0; i < m; i++)
+        l[i] = 0 - INF;
+    fclose(myfile);
+}
 
 
 // calculate inverse of a diagonal matrix A and store it in matrix B
@@ -305,26 +339,29 @@ int main() {
     int n,m;
     //get n and m
     // input
-    //case 1
-    n = 2;
-    m = 2;
+//    //case 1
+//    n = 2;
+//    m = 2;
+//  case 2
+    n = 10;
+    m = 10;
     double P[n][n],Q[n], A[m][n], AT[n][m], l[m],u[m];
-    // case 1
-    P[0][0] = 0.01;
-    P[0][1] = 0.0;
-    P[1][0] = 0.0;
-    P[1][1] = 0.2889654;
-    Q[0] = -1.07296862;
-    Q[1] = 0.86540763;
-    A[0][0] = 0.0;
-    A[0][1] = 0.0;
-    A[1][0] = 0.0;
-    A[1][1] = -2.3015387;
-    l[0] = 0 - INF;
-    l[1] = 0 - INF;
-    u[0] = 0.22957721;
-    u[1] = -2.11756839;
-    //get_input(P,Q,l,u,A);
+//    // case 1
+//    P[0][0] = 0.01;
+//    P[0][1] = 0.0;
+//    P[1][0] = 0.0;
+//    P[1][1] = 0.2889654;
+//    Q[0] = -1.07296862;
+//    Q[1] = 0.86540763;
+//    A[0][0] = 0.0;
+//    A[0][1] = 0.0;
+//    A[1][0] = 0.0;
+//    A[1][1] = -2.3015387;
+//    l[0] = 0 - INF;
+//    l[1] = 0 - INF;
+//    u[0] = 0.22957721;
+//    u[1] = -2.11756839;
+    get_input(n,m,P,Q,l,u,A);
     //get AT = A^T
     transpose(m,n, A, AT);
     //initialize x,y,z
