@@ -1,4 +1,39 @@
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "cublas_v2.h"
+#include "support.h"
+
+cublasHandle_t cublasHandle;
+
+// return summation of two vectors
+// C = A + B
+void vecAdd(int n, double* d_A, double* d_B, double* d_C) {
+    double alpha = 1;
+    checkCublasErrors(cublasDcopy(cublasHandle, n, d_A, 1, d_C, 1));
+    checkCublasErrors(cublasDaxpy(cublasHandle, n, &alpha, d_B, 1, d_C, 1));
+}
+
+// return inner project of two vectors
+// C = A * B
+double innerProduct(int n, double *d_A, double *d_B) {
+    double h_C;
+    checkCublasErrors(cublasDdot(cublasHandle, n, d_A, 1, d_B, 1, &h_C));
+    return h_C;
+}
+
+// B = val * A
+void scalarMulVec(int n, double val, double *d_A, double *d_B) {
+    checkCudaErrors(cudaMemset(d_B, 0.0, sizeof(double)*n));
+    checkCublasErrors(cublasDaxpy(cublasHandle, n, &val, d_A, 1, d_B, 1));
+}
+
+// scale a vector in place
+// A = val * A
+void scaleMulVecInPlace(int n, double val, double *d_A) {
+    checkCublasErrors(cublasDscal(cublasHandle, n, &val, d_A, 1));
+}
 
 
 void get_input(int n, int m, double P[n][n], double Q[n], double l[m], double u[m], double A[m][n], double AT[n][m]){
@@ -68,26 +103,9 @@ void matAdd(int n, int m, double A[n][m], double B[n][m], int C[n][m]){
 
 }
 
-// return inner project of two vectors
-double innerProduct(int n, double A[n], double B[n]){
-
-}
-
-
-// calculate sum of two vectors
-void vecAdd(int n, int A[n], double B[n], double C[n]){
-
-}
 
 // min(l) max(u) projection of an vector
 void vecMinMaxProj(int n, double A[n], double l[n], double u[n], double B[n]){
-
-
-}
-
-// B = val * A
-void scalarMulVec(int n, double val, double A[n], double B[n])
-{
 
 
 }
