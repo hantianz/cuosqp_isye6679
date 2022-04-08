@@ -1,11 +1,268 @@
-#include <iostream>
+// nvcc cusparse.cu  -lcusparse  -o  cusparse
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "cublas_v2.h"
 #include "support.h"
+#include "cublas_v2.h"
+#include <cusparse.h>
 
+void checkCudaErrors(cudaError_t cuda_ret) {
+    if(cuda_ret != cudaSuccess) FATAL("CUDA Error");
+}
+void checkCublasErrors(cublasStatus_t cuda_ret) {
+    if(cuda_ret != CUBLAS_STATUS_SUCCESS) FATAL("Cublas Error");
+}
+
+void checkCusparseErrors(cusparseStatus_t cuda_ret) {
+    if(cuda_ret != CUSPARSE_STATUS_SUCCESS) {
+        FATAL("Cusparse Error: %s", cusparseGetErrorString(cuda_ret));
+    }
+}
+
+cusparseHandle_t cusparseHandle;
 cublasHandle_t cublasHandle;
+
+
+/* ------------------------------- type define--------------------------------*/
+
+/* CSR matrix */
+typedef struct {
+    int m; // number of rows
+    int n; //num of columns
+    int nnz; // num of nonzero entries
+    double* h_val; // Points to the data array of length nnz that holds all nonzero values of A in row-major format.
+    int* h_rowPtr; // Points to the integer array of length m+1 that holds indices into the arrays csrColIndA and csrValA
+    int* h_colInd; // Points to the integer array of length nnz that contains the column indices of the corresponding elements in array csrValA
+} CSR_h;
+
+typedef struct {
+    int m; // number of rows
+    int n; //num of columns
+    int nnz; // num of nonzero entries
+    double* d_val;
+    int* d_rowPtr;
+    int* d_colInd; 
+    cusparseSpMatDescr_t descr;
+} CSR_d;
+
+void initCSR_h(CSR_h *mat, int m, int n, int nnz, double *h_val, int *h_rowPtr, int *h_colInd) {
+    mat->m = m;
+    mat->n = n;
+    mat->nnz = nnz;
+    mat->h_val = h_val;
+    mat->h_rowPtr = h_rowPtr;
+    mat->h_colInd = h_colInd;
+}
+
+void initCSR_d(CSR_d *mat, int m, int n, int nnz, double *d_val, int *d_rowPtr, int *d_colInd) {
+    mat->m = m;
+    mat->n = n;
+    mat->nnz = nnz;
+
+    mat->d_val = d_val;
+    mat->d_rowPtr = d_rowPtr;
+    mat->d_colInd = d_colInd;
+
+    if(nnz > 0) {
+        checkCusparseErrors(cusparseCreateCsr(&mat->descr, 
+                          m, 
+                          n,
+                          nnz,
+                          d_rowPtr,
+                          d_colInd,
+                          d_val,
+                          CUSPARSE_INDEX_32I,
+                          CUSPARSE_INDEX_32I,
+                          CUSPARSE_INDEX_BASE_ZERO, 
+                          CUDA_R_64F));
+    }
+
+}
+
+/* Dense vector*/
+typedef struct {
+    int n; // length of vector
+    double* h_val;
+} VEC_h;
+
+
+typedef struct {
+    int n; // length of vector
+    double* d_val;
+    cusparseDnVecDescr_t descr;
+} VEC_d;
+
+void initVEC_h(VEC_h *v, int n, double *h_val) {
+    v->n = n;
+    v->h_val = h_val;
+}
+
+void initVEC_d(VEC_d *v, int n, double *d_val) {
+    v->n = n;
+    v->d_val = d_val;
+    checkCusparseErrors(cusparseCreateDnVec(&v->descr, n, d_val, CUDA_R_64F));
+}
+
+
+/* Dense matrix*/
+typedef struct {
+    int m;
+    int n;
+    double* h_val;
+} DN_h;
+
+typedef struct {
+    int m;
+    int n;
+    double* d_val;
+    cusparseDnMatDescr_t descr;
+} DN_d;
+
+void initDN_h(DN_h *mat, int m, int n, double *h_val) {
+    mat->m = m;
+    mat->n = n;
+    mat->h_val = h_val;
+}
+
+void initDN_d(DN_d *mat, int m, int n, double *d_val) {
+    mat->m = m;
+    mat->n = n;
+    mat->d_val = d_val;
+    checkCusparseErrors(cusparseCreateDnMat(&mat->descr, m, n, m, mat->d_val, CUDA_R_64F, CUSPARSE_ORDER_ROW));
+}
+
+
+/* ------------------------------- type conversion -------------------------------*/
+
+void CSR_h2d(CSR_h *h_mat, CSR_d *d_mat) {
+    double *d_val;
+    int *d_rowPtr;
+    int *d_colInd;
+
+    if(h_mat->nnz > 0) {
+        checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*h_mat->nnz));
+        checkCudaErrors(cudaMalloc((void**)&d_rowPtr, sizeof(int)*(h_mat->m+1)));
+        checkCudaErrors(cudaMalloc((void**)&d_colInd, sizeof(int)*h_mat->nnz));
+
+        checkCudaErrors(cudaMemcpy(d_val, h_mat->h_val, sizeof(double)*h_mat->nnz, cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(d_rowPtr, h_mat->h_rowPtr, sizeof(int)*(h_mat->m+1), cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(d_colInd, h_mat->h_colInd, sizeof(int)*h_mat->nnz, cudaMemcpyHostToDevice));
+    }
+    else{
+        d_val = NULL;
+        d_colInd = NULL;
+        d_rowPtr = NULL;
+        // checkCudaErrors(cudaMalloc((void**)&d_rowPtr, sizeof(int)*(h_mat->m+1)));
+        // checkCudaErrors(cudaMemcpy(d_rowPtr, h_mat->h_rowPtr, sizeof(int)*(h_mat->m+1), cudaMemcpyHostToDevice));
+    }
+
+    initCSR_d(d_mat, h_mat->m, h_mat->n, h_mat->nnz, d_val, d_rowPtr, d_colInd);
+    
+}
+
+void CSR_d2h(CSR_d *d_mat, CSR_h *h_mat) {
+    double *h_val = (double *) malloc(sizeof(double)*d_mat->nnz);
+    int *h_rowPtr = (int *) malloc(sizeof(int)*(d_mat->m+1));
+    int *h_colInd = (int *) malloc(sizeof(int)*d_mat->nnz);
+
+    checkCudaErrors(cudaMemcpy(h_val, d_mat->d_val, sizeof(double)*d_mat->nnz, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_rowPtr, d_mat->d_rowPtr, sizeof(int)*(d_mat->m+1), cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_colInd, d_mat->d_colInd, sizeof(int)*d_mat->nnz, cudaMemcpyDeviceToHost));
+
+    initCSR_h(h_mat, d_mat->m, d_mat->n, d_mat->nnz, h_val, h_rowPtr, h_colInd);
+    
+}
+
+
+void VEC_h2d(VEC_h *h_v, VEC_d *d_v) {
+    double *d_val;
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*h_v->n));
+    checkCudaErrors(cudaMemcpy(d_val, h_v->h_val, sizeof(double)*h_v->n, cudaMemcpyHostToDevice));
+    initVEC_d(d_v, h_v->n, d_val);
+}
+
+void VEC_d2h(VEC_d *d_v, VEC_h *h_v) {
+    double *h_val = (double *) malloc(sizeof(double) * d_v->n);
+    checkCudaErrors(cudaMemcpy(h_val, d_v->d_val, sizeof(double)*d_v->n, cudaMemcpyDeviceToHost));
+    initVEC_h(h_v, d_v->n, h_val);
+}
+
+
+void DN_h2d(DN_h *h_mat, DN_d *d_mat) {
+    double *d_val;
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*h_mat->n*h_mat->m));
+    checkCudaErrors(cudaMemcpy(d_val,h_mat->h_val, sizeof(double)*h_mat->n*h_mat->m, cudaMemcpyHostToDevice));
+    initDN_d(d_mat, h_mat->m, h_mat->n, d_val);
+}
+
+void DN_h2CSR_h(DN_h *mat_dn, CSR_h *mat_csr) {
+    int nnz = 0;
+    for (int i = 0; i < mat_dn->m; i++) {
+        for (int j = 0; j < mat_dn->n; j++) {
+            if(mat_dn->h_val[i*mat_dn->n+j] != 0) {
+                nnz += 1;
+            }
+        }
+    }
+
+    double *h_val;
+    int *h_rowPtr;
+    int *h_colInd;
+
+    if(nnz > 0) {
+        h_val = (double *) malloc(sizeof(double) *nnz);
+        h_rowPtr = (int *) malloc(sizeof(int) * (mat_dn->m + 1));
+        h_colInd = (int *) malloc(sizeof(double) *nnz);
+        int count = 0;
+        h_rowPtr[0] = 0;
+
+        for (int i = 0; i < mat_dn->m; i++) {
+            for (int j = 0; j < mat_dn->n; j++) {
+                if(mat_dn->h_val[i*mat_dn->n+j] != 0) {
+                    h_val[count] = mat_dn->h_val[i*mat_dn->n+j];
+                    h_colInd[count] = j;
+                    count += 1;
+                }
+                h_rowPtr[i+1] = count;
+            }
+        }
+    }
+    else {
+        h_val = NULL;
+        h_rowPtr = NULL;
+        h_colInd = NULL;
+        // h_rowPtr = (int *) malloc(sizeof(int) * (mat_dn->m + 1));
+        // memset(h_rowPtr, 0, sizeof(int) * (mat_dn->m + 1));
+    }
+    initCSR_h(mat_csr, mat_dn->m, mat_dn->n, nnz, h_val, h_rowPtr, h_colInd);
+}
+
+void CSR_h2DN_h(CSR_h *mat_csr, DN_h *mat_dn) {
+    double *h_val = (double *) malloc(sizeof(double) * mat_csr->m * mat_csr->n);
+    memset(h_val, 0, sizeof(double) * mat_csr->m * mat_csr->n);
+    int rowIdx = 0;
+    int colIdx = 0;
+    int rowPtrIdx = 0;
+    int nnz_row = mat_csr->h_rowPtr[rowPtrIdx+1] - mat_csr->h_rowPtr[rowPtrIdx];
+
+    for (int i = 0; i < mat_csr->nnz; i++) {
+        colIdx = mat_csr->h_colInd[i];
+
+        while (nnz_row <= 0) {
+            rowIdx += 1;
+            rowPtrIdx += 1;
+            nnz_row = mat_csr->h_rowPtr[rowPtrIdx+1] - mat_csr->h_rowPtr[rowPtrIdx];
+        }
+        
+        h_val[rowIdx * mat_csr->n + colIdx] = mat_csr->h_val[i];
+        nnz_row -= 1;
+    }
+
+    initDN_h(mat_dn, mat_csr->m, mat_csr->n, h_val);
+}
+
+
+/* ------------------------------- Cublas functions -------------------------------*/
 
 // return summation of two vectors
 // C = A + B
@@ -34,6 +291,183 @@ void scalarMulVec(int n, double val, double *d_A, double *d_B) {
 void scaleMulVecInPlace(int n, double val, double *d_A) {
     checkCublasErrors(cublasDscal(cublasHandle, n, &val, d_A, 1));
 }
+
+
+/* ------------------------------- Cusparse functions -------------------------------*/
+
+// vev C = mat A * vec B
+void matMulVec(CSR_d *d_A, VEC_d *d_B, VEC_d *d_C) {
+    double alpha = 1;
+    double beta = 1;
+    checkCudaErrors(cudaMemset(d_C->d_val, 0.0, sizeof(double)*d_C->n));
+    
+    //prepare buffer
+    char *buffer;
+    size_t bufferSizeInBytes;
+
+    checkCusparseErrors(cusparseSpMV_bufferSize(cusparseHandle, 
+                 CUSPARSE_OPERATION_NON_TRANSPOSE, 
+                 &alpha,
+                 d_A->descr,
+                 d_B->descr,
+                 &beta,
+                 d_C->descr,
+                 CUDA_R_64F,
+                 CUSPARSE_MV_ALG_DEFAULT,
+                 &bufferSizeInBytes
+                ));
+
+    checkCudaErrors(cudaMalloc((void**)&buffer, sizeof(char)*bufferSizeInBytes));
+
+    checkCusparseErrors(cusparseSpMV(cusparseHandle, 
+                 CUSPARSE_OPERATION_NON_TRANSPOSE, 
+                 &alpha,
+                 d_A->descr,
+                 d_B->descr,
+                 &beta,
+                 d_C->descr,
+                 CUDA_R_64F,
+                 CUSPARSE_MV_ALG_DEFAULT,
+                 buffer
+                ));
+
+    cudaFree(buffer);
+}
+
+// vec C = vec B * mat A = mat AT * B
+void vecMulMat(VEC_d *d_B, CSR_d *d_A, VEC_d *d_C) {
+    double alpha = 1;
+    double beta = 1;
+    checkCudaErrors(cudaMemset(d_C->d_val, 0.0, sizeof(double)*d_C->n));
+    
+    //prepare buffer
+    char *buffer;
+    size_t bufferSizeInBytes;
+
+    checkCusparseErrors(cusparseSpMV_bufferSize(cusparseHandle, 
+                 CUSPARSE_OPERATION_TRANSPOSE, 
+                 &alpha,
+                 d_A->descr,
+                 d_B->descr,
+                 &beta,
+                 d_C->descr,
+                 CUDA_R_64F,
+                 CUSPARSE_MV_ALG_DEFAULT,
+                 &bufferSizeInBytes
+                ));
+
+    checkCudaErrors(cudaMalloc((void**)&buffer, sizeof(char)*bufferSizeInBytes));
+
+    checkCusparseErrors(cusparseSpMV(cusparseHandle, 
+                 CUSPARSE_OPERATION_TRANSPOSE, 
+                 &alpha,
+                 d_A->descr,
+                 d_B->descr,
+                 &beta,
+                 d_C->descr,
+                 CUDA_R_64F,
+                 CUSPARSE_MV_ALG_DEFAULT,
+                 buffer
+                ));
+
+    cudaFree(buffer);
+}
+
+// mat C = mat A + mat B
+void matAdd(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
+    double alpha = 1;
+    double beta = 1;
+    int baseC, nnzC;
+    int *nnzTotalDevHostPtr = &nnzC;
+
+    //prepare buffer
+    char *buffer;
+    size_t bufferSizeInBytes;
+
+    cusparseSetPointerMode(cusparseHandle, CUSPARSE_POINTER_MODE_HOST);
+    cudaMalloc((void**)&d_C->d_rowPtr, sizeof(int)*(d_A->m+1));
+
+    cusparseMatDescr_t mat_descr;
+    cusparseCreateMatDescr(&mat_descr);
+
+    checkCusparseErrors(cusparseDcsrgeam2_bufferSizeExt(cusparseHandle,
+                                                        d_A->m,
+                                                        d_A->n,
+                                                        &alpha,
+                                                        mat_descr,
+                                                        d_A->nnz,
+                                                        d_A->d_val,
+                                                        d_A->d_rowPtr,
+                                                        d_A->d_colInd,
+                                                        &beta,
+                                                        mat_descr,
+                                                        d_B->nnz,
+                                                        d_B->d_val,
+                                                        d_B->d_rowPtr,
+                                                        d_B->d_colInd,
+                                                        mat_descr,
+                                                        d_C->d_val,
+                                                        d_C->d_rowPtr,
+                                                        d_C->d_colInd,
+                                                        &bufferSizeInBytes
+                        ));
+    checkCudaErrors(cudaMalloc((void**)&buffer, sizeof(char)*bufferSizeInBytes));
+
+    checkCusparseErrors(cusparseXcsrgeam2Nnz(cusparseHandle, 
+                         d_A->m,
+                         d_A->n,
+                         mat_descr,
+                         d_A->nnz,
+                         d_A->d_rowPtr,
+                         d_A->d_colInd,
+                         mat_descr,
+                         d_B->nnz,
+                         d_B->d_rowPtr,
+                         d_B->d_colInd,
+                         mat_descr,
+                         d_C->d_rowPtr,
+                         nnzTotalDevHostPtr,
+                         buffer));
+
+    if (NULL != nnzTotalDevHostPtr){
+        nnzC = *nnzTotalDevHostPtr;
+
+    }else{
+        checkCudaErrors(cudaMemcpy(&nnzC, d_C->d_rowPtr+d_A->m, sizeof(int), cudaMemcpyDeviceToHost));
+        checkCudaErrors(cudaMemcpy(&baseC, d_C->d_rowPtr, sizeof(int), cudaMemcpyDeviceToHost));
+        nnzC -= baseC;
+    }
+
+    checkCudaErrors(cudaMalloc((void**)&d_C->d_colInd, sizeof(int)*nnzC));
+    checkCudaErrors(cudaMalloc((void**)&d_C->d_val, sizeof(double)*nnzC));
+
+    checkCusparseErrors(cusparseDcsrgeam2(cusparseHandle,
+                                            d_A->m,
+                                            d_A->n,
+                                            &alpha,
+                                            mat_descr,
+                                            d_A->nnz,
+                                            d_A->d_val,
+                                            d_A->d_rowPtr,
+                                            d_A->d_colInd,
+                                            &beta,
+                                            mat_descr,
+                                            d_B->nnz,
+                                            d_B->d_val,
+                                            d_B->d_rowPtr,
+                                            d_B->d_colInd,
+                                            mat_descr,
+                                            d_C->d_val,
+                                            d_C->d_rowPtr,
+                                            d_C->d_colInd,
+                                            buffer
+                        ));
+    initCSR_d(d_C, d_A->m, d_A->n, nnzC, d_C->d_val, d_C->d_rowPtr, d_C->d_colInd);
+
+    cudaFree(buffer);
+}
+
+
 
 
 void get_input(int n, int m, double P[n][n], double Q[n], double l[m], double u[m], double A[m][n], double AT[n][m]){

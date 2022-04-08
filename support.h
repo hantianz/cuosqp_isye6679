@@ -22,7 +22,7 @@ float elapsedTime(Timer timer);
 #define FATAL(msg, ...) \
     do {\
       fprintf(stderr, "[%s:%d] "msg"\n", __FILE__, __LINE__, ##__VA_ARGS__); \
-      exit(-1);								\
+      exit(-1);                             \
     } while(0)
 
 #if __BYTE_ORDER != __LITTLE_ENDIAN
@@ -31,9 +31,3 @@ float elapsedTime(Timer timer);
 
 #endif
 
-void checkCudaErrors(cudaError_t cuda_ret) {
-    if(cuda_ret != cudaSuccess) FATAL("CUDA Error");
-}
-void checkCublasErrors(cublasStatus_t cuda_ret) {
-    if(cuda_ret != CUBLAS_STATUS_SUCCESS) FATAL("Cublas Error");
-}
