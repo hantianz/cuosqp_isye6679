@@ -195,6 +195,7 @@ void destroyVEC_h(VEC_h *v) {
 
 void destroyVEC_d(VEC_d *v) {
     cusparseDestroyDnVec(v->descr);
+    cudaFree(v->d_val);
     free(v);
 }
 
@@ -205,6 +206,7 @@ void destroyDN_h(DN_h *mat) {
 
 void destroyDN_d(DN_d *mat) {
     cusparseDestroyDnMat(mat->descr);
+    cudaFree(mat->d_val);
     free(mat);
 }
 
@@ -217,6 +219,9 @@ void destroyCSR_h(CSR_h *mat) {
 
 void destroyCSR_d(CSR_d *mat) {
     cusparseDestroySpMat(mat->descr);
+    cudaFree(mat->d_val);
+    cudaFree(mat->d_rowPtr);
+    cudaFree(mat->d_colInd);
     free(mat);
 }
 
