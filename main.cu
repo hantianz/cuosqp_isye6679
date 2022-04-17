@@ -702,6 +702,8 @@ int main() {
         copyVEC_d(x, xOld);
         copyVEC_d(y, yOld);
         copyVEC_d(z, zOld);
+        copyVEC_d(x, xNext);
+        copyVEC_d(z, zNext);
 
         //calculate the penalty matrix R and its inverse RINV
 
