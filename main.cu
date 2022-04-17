@@ -508,12 +508,12 @@ int main() {
     //
     int n,m;
     double sigma = 0.000001, alpha=1.6, rho = 0.5;
-    char testcase[30]="data/instance-3x4/";
+    char testcase[30]="data/instance-300x400/";
     //get n and m
     // input
 //    //case 1
-    n = 2;
-    m = 2;
+//    n = 2;
+//    m = 2;
 //  case 2
 //    n = 10;
 //    m = 10;
@@ -673,9 +673,9 @@ int main() {
         // update x
         VEC_d *temp1 = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *temp2 = (VEC_d *) malloc(sizeof(VEC_d));
-        printf("%d\n", k);
-        printVecd(xNext);
-        printVecd(zNext);
+//        printf("%d\n", k);
+//        printVecd(xNext);
+//        printVecd(zNext);
         scalarMulVec(alpha, xNext, temp1); // temp1 = alpha * xNext;
         scalarMulVec(1 - alpha, x, temp2); // temp2 = (1 - alpha) * x;
         vecAdd(temp1, temp2, x); // x = alpha * xNext +  (1 - alpha) * x;
@@ -724,7 +724,7 @@ int main() {
         copyVEC_d(zNextReal, z);
 
         printf("Round:%d, obj:%.6f\n", k, objValue(n,P,Q,x));
-        printVecd(x);
+        //printVecd(x);
         k += 1;
    
         destroyVEC_d(temp1);
