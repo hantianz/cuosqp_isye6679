@@ -847,4 +847,28 @@ void printIVec_d(int n, int *A) {
     free(h_A);
 }
 
+void printVech(VEC_h *vec) {
+    printDVec(vec->n, vec->h_val);
+    print("\n");
+}
+
+void printVecd(VEC_d *vec) {
+    printDVec_d(vec->n, vec->d_val);
+    print("\n");
+}
+
+void printCSRh(CSR_h *mat) {
+    DN_h *mat_dn = (DN_h *) malloc(sizeof(DN_h));
+    CSR_h2DN_h(mat, mat_dn);
+    printMatrix(mat_dn->m, mat_dn->n, mat_dn->h_val);
+    print("\n");
+    destroyDN_h(mat_dn);
+}
+
+void printCSRd(CSR_d *mat) {
+    CSR_h *mat_h = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_d2h(mat, mat_h);
+    printCSRh(mat_h);
+    destroyCSR_h(mat_h);
+}
 

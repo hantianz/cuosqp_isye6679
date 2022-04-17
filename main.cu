@@ -286,11 +286,8 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     // printDVec_d(M->nnz, M->d_val);
     // printDVec_d(MINV->nnz, MINV->d_val);
 
-    DN_h *K_h_dn = (DN_h *) malloc(sizeof(DN_h));
-    CSR_h2DN_h(K_h, K_h_dn);
-    printMatrix(K_h_dn->m, K_h_dn->n, K_h_dn->h_val);
-    printf("\n");
-
+    printCSR_h(K_h);
+    printCSR_h(M_h);
     printDVec(M_h->nnz, M_h->h_val);
     exit(-1);
 
