@@ -805,6 +805,54 @@ void scalarMulMat(double sc, CSR_d *d_A, CSR_d *d_C) {
     cudaFree(buffer);
 }
 
+// B = AT
+void transpose(CSR_d *d_A, CSR_d *d_B) {
+    char *buffer;
+    size_t bufferSizeInBytes;
+
+    // init d_B (n x m)
+    checkCudaErrors(cudaMalloc((void**)&d_B->d_val, sizeof(double)*d_A->nnz));
+    checkCudaErrors(cudaMalloc((void**)&d_B->d_rowPtr, sizeof(int)*(d_A->n+1)));
+    checkCudaErrors(cudaMalloc((void**)&d_B->d_colInd, sizeof(int)*d_A->nnz));
+    
+    checkCusparseErrors(cusparseCsr2cscEx2_bufferSize(cusparseHandle,
+                                                      d_A->m,
+                                                      d_A->n,
+                                                      d_A->nnz,
+                                                      d_A->d_val,
+                                                      d_A->d_rowPtr,
+                                                      d_A->d_colInd,
+                                                      d_B->d_val,
+                                                      d_B->d_rowPtr,
+                                                      d_B->d_colInd,
+                                                      CUDA_R_64F,
+                                                      CUSPARSE_ACTION_NUMERIC,
+                                                      CUSPARSE_INDEX_BASE_ZERO,
+                                                      CUSPARSE_CSR2CSC_ALG1,
+                                                      &bufferSizeInBytes));
+
+    checkCudaErrors(cudaMalloc((void**)&buffer, sizeof(char)*bufferSizeInBytes));
+
+    checkCusparseErrors(cusparseCsr2cscEx2(cusparseHandle,
+                                              d_A->m,
+                                              d_A->n,
+                                              d_A->nnz,
+                                              d_A->d_val,
+                                              d_A->d_rowPtr,
+                                              d_A->d_colInd,
+                                              d_B->d_val,
+                                              d_B->d_rowPtr,
+                                              d_B->d_colInd,
+                                              CUDA_R_64F,
+                                              CUSPARSE_ACTION_NUMERIC,
+                                              CUSPARSE_INDEX_BASE_ZERO,
+                                              CUSPARSE_CSR2CSC_ALG1,
+                                              buffer));
+
+    initCSR_d(d_B, d_A->n, d_A->m, d_A->nnz, d_B->d_val, d_B->d_rowPtr, d_B->d_colInd);
+    cudaFree(buffer);
+}
+
 void printMatrix(int m, int n, double *A) {
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < n; j++) {
