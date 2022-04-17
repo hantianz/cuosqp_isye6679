@@ -12,7 +12,9 @@ void checkCudaErrors(cudaError_t cuda_ret) {
     }
 }
 void checkCublasErrors(cublasStatus_t cuda_ret) {
-    if(cuda_ret != CUBLAS_STATUS_SUCCESS) FATAL("Cublas Error");
+    if(cuda_ret != CUBLAS_STATUS_SUCCESS) {
+        FATAL("Cublas Error: %d", cuda_ret);
+    }
 }
 
 void checkCusparseErrors(cusparseStatus_t cuda_ret) {
@@ -802,3 +804,47 @@ void scalarMulMat(double sc, CSR_d *d_A, CSR_d *d_C) {
                                     
     cudaFree(buffer);
 }
+
+void printMatrix(int m, int n, double *A) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            printf("%f,", A[i*n+j]);
+        }
+        printf("\n");
+    }
+}
+
+void printMatrix_d(int m, int n, double *A) {
+    double *h_A = (double *) malloc(sizeof(double) * m * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(double)*n*m, cudaMemcpyDeviceToHost));
+    printMatrix(m, n, h_A);
+    free(h_A);
+}
+
+void printDVec(int n, double *A) {
+    for (int i = 0; i < n; i++) {
+        printf("%f, ", A[i]);
+    }
+}
+
+void printIVec(int n, int *A) {
+    for (int i = 0; i < n; i++) {
+        printf("%d, ", A[i]);
+    }
+}
+
+void printDVec_d(int n, double *A) {
+    double *h_A = (double *) malloc(sizeof(double) * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(double)*n, cudaMemcpyDeviceToHost));
+    printDVec(n, h_A);
+    free(h_A);
+}
+
+void printIVec_d(int n, int *A) {
+    int *h_A = (int *) malloc(sizeof(int) * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(int)*n, cudaMemcpyDeviceToHost));
+    printIVec(n, h_A);
+    free(h_A);
+}
+
+

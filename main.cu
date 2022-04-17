@@ -203,6 +203,7 @@ void getDiagonal(CSR_h *K, CSR_h *M)
     M->h_rowPtr = d_rowPtr;
     M->h_colInd = d_colInd;
     M->h_val = d_val;
+    M->nnz = nnz;
 }
 
 // calculate objective value obj = 1/2 * x^T * P * x + q^T * X
@@ -224,6 +225,7 @@ int termination(VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CSR_d *A, CSR_
 
     //calculate residual of Primal
     matMulVec(A, x, temp1); // temp1 = A*x;
+
     scalarMulVec(-1, z, temp2); // temp2 = -z;
     vecAdd(temp1, temp2, residualPrimal); // residualPrimal = A*x - z;
 
@@ -246,7 +248,7 @@ int termination(VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CSR_d *A, CSR_
     destroyVEC_d(temp5);
     destroyVEC_d(residualPrimal);
     destroyVEC_d(residualDual);
-    if (residualPrimalDouble <= epsilonPrimal) && (residualDualDouble <= epsilonDual))
+    if ((residualPrimalDouble <= epsilonPrimal) && (residualDualDouble <= epsilonDual))
         return 1;
     else
         return 0;
@@ -258,7 +260,7 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 {
     CSR_d *K = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *I = (CSR_d *) malloc(sizeof(CSR_d));
-    CSR_h *I_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_h *I_h = (CSR_h *) malloc(sizeof(CSR_h));
     initializeDiagMat(n, 1, I_h);
     CSR_h2d(I_h, I);
     CSR_d *temp1 = (CSR_d *) malloc(sizeof(CSR_d));
@@ -273,12 +275,27 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 
     CSR_d *M = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *MINV = (CSR_d *) malloc(sizeof(CSR_d));
-    CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_d));
-    CSR_h *K_h = (CSR_h *) malloc(sizeof(CSR_d));
-    CSR_d2h(K,K_h);
-    getDiagonal(K_h,M_h);
-    CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_d));
-    CSR_d2h(M,M_h);
+    CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_h *K_h = (CSR_h *) malloc(sizeof(CSR_h));
+
+    CSR_d2h(K, K_h);
+    getDiagonal(K_h, M_h);
+
+
+    // printf("%d, %d, %d, %d, %d", MINV->m, MINV->n, r->n, MINV->nnz, M->nnz);
+    // printDVec_d(M->nnz, M->d_val);
+    // printDVec_d(MINV->nnz, MINV->d_val);
+
+    DN_h *K_h_dn = (DN_h *) malloc(sizeof(DN_h));
+    CSR_h2DN_h(K_h, K_h_dn);
+    printMatrix(K_h_dn->m, K_h_dn->n, K_h_dn->h_val);
+    printf("\n");
+
+    printDVec(M_h->nnz, M_h->h_val);
+    exit(-1);
+
+    CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_h2d(M_h, M);
     inverseDiag(M_h,MINV_h);
     CSR_h2d(MINV_h, MINV);
 
@@ -307,6 +324,7 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 
     //intitialize y0 = M^(-1)*r;
     VEC_d *y_kkt = (VEC_d *) malloc(sizeof(VEC_d));
+
     matMulVec(MINV, r, y_kkt); // y0 = M^(-1)*r
 
     // intitialize p0 = -y0;
@@ -398,14 +416,14 @@ int main() {
 //  case 2
 //    n = 10;
 //    m = 10;
-    double P_h[n*n],Q_h[n], A_h[m*n], AT_h[n*m], l_h[m],u_h[m];
+    double P_h[n*n],Q_h_val[n], A_h[m*n], AT_h[n*m], l_h_val[m],u_h_val[m];
     // case 1
     P_h[0] = 0.01;
     P_h[0] = 0.0;
     P_h[2] = 0.0;
     P_h[3] = 0.2889654;
-    Q_h[0] = -1.07296862;
-    Q_h[1] = 0.86540763;
+    Q_h_val[0] = -1.07296862;
+    Q_h_val[1] = 0.86540763;
     A_h[0] = 0.0;
     A_h[1] = 0.0;
     A_h[2] = 0.0;
@@ -414,16 +432,16 @@ int main() {
     AT_h[1] = 0.0;
     AT_h[2] = 0.0;
     AT_h[3] = -2.3015387;
-    l_h[0] = 0 - INF;
-    l_h[1] = 0 - INF;
-    u_h[0] = 0.22957721;
-    u_h[1] = -2.11756839;
+    l_h_val[0] = 0 - INF;
+    l_h_val[1] = 0 - INF;
+    u_h_val[0] = 0.22957721;
+    u_h_val[1] = -2.11756839;
  //   get_input(n,m,P,Q,l,u,A);
     //get AT = A^T
     //transpose(m,n, A_h, AT_h);
     //initialize x,y,z
     double R_h[m*m];
-    calculateR(m, R_h, l_h, u_h, rho);
+    calculateR(m, R_h, l_h_val, u_h_val, rho);
     //double A_2d[m*n];
     //double AT_2d[n*m];
     //double P_2d[n*n];
@@ -459,16 +477,33 @@ int main() {
     CSR_d *R = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(R_csrh, R);
 
-    CSR_h *RINV_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_h *RINV_h = (CSR_h *) malloc(sizeof(CSR_h));
     inverseDiag(R_csrh, RINV_h);
     CSR_d *RINV = (CSR_d *) malloc(sizeof(CSR_d));
 
 
 
-    double x_h[n], y_h[m], z_h[m];
-    memset(x_h, 0, sizeof(x_h));
-    memset(y_h, 0, sizeof(y_h));
-    memset(z_h, 0, sizeof(z_h));
+    double x_h_val[n]; 
+    double y_h_val[m]; 
+    double z_h_val[m]; 
+    memset(x_h_val, 0, sizeof(double)*n);
+    memset(y_h_val, 0, sizeof(double)*m);
+    memset(z_h_val, 0, sizeof(double)*m);
+
+    VEC_h *x_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *y_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *z_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *l_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *u_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_d));
+
+    initVEC_h(x_h, n, x_h_val);
+    initVEC_h(y_h, m, y_h_val);
+    initVEC_h(z_h, m, z_h_val);
+    initVEC_h(l_h, m, l_h_val);
+    initVEC_h(u_h, m, u_h_val);
+    initVEC_h(Q_h, m, Q_h_val);
+
     VEC_d *x = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *y = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *z = (VEC_d *) malloc(sizeof(VEC_d));
@@ -476,12 +511,12 @@ int main() {
     VEC_d *u = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *Q = (VEC_d *) malloc(sizeof(VEC_d));
 
-    initVEC_d(x, n, x_h);
-    initVEC_d(y, m, y_h);
-    initVEC_d(z, m, z_h);
-    initVEC_d(l, m, l_h);
-    initVEC_d(u, m, u_h);
-    initVEC_d(Q, m, Q_h);
+    VEC_h2d(x_h, x);
+    VEC_h2d(y_h, y);
+    VEC_h2d(z_h, z);
+    VEC_h2d(l_h, l);
+    VEC_h2d(u_h, u);
+    VEC_h2d(Q_h, Q);
 
     // initialize sigma and alpha
     // initialize epsilon, now we assume epsilon is a constant
@@ -492,10 +527,9 @@ int main() {
     //eps = calc_eps();
     int k = 0;
 
-
-
     while (!termination(x, y, z, P, Q, A, AT, epsilonPrimal, epsilonDual) && k <= 100)
     {
+
         VEC_d *xNext = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *zNext = (VEC_d *) malloc(sizeof(VEC_d));
 
