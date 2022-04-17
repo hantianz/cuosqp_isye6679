@@ -537,7 +537,7 @@ int main() {
     //
     int n,m;
     double sigma = 0.000001, alpha=1.6, rho =  0.5;//9.054556534215896;
-    char testcase[40]="data/instance-3x4/";
+    char testcase[40]="data/instance-3000x8000/";
     //get n and m
     // input
 //    //case 1
@@ -788,6 +788,12 @@ int main() {
         destroyVEC_d(temp7);
         destroyVEC_d(xNext);
         destroyVEC_d(zNext);
+        destroyVEC_d(xOld);
+        destroyVEC_d(yOld);
+        destroyVEC_d(zOld);
+        destroyVEC_d(xDiff);
+        destroyVEC_d(yDiff);
+        destroyVEC_d(zDiff);
     }
 
     destroyVEC_d(x);
