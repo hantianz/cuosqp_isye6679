@@ -246,7 +246,7 @@ int termination(VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CSR_d *A, CSR_
     destroyVEC_d(temp5);
     destroyVEC_d(residualPrimal);
     destroyVEC_d(residualDual);
-    if (residualPrimalDouble <= epsilonPrimal) && (residualDualDouble <= epsilonDual))
+    if ((residualPrimalDouble <= epsilonPrimal) && (residualDualDouble <= epsilonDual))
         return 1;
     else
         return 0;
