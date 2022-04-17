@@ -47,6 +47,13 @@ void printMatrix(int m, int n, double *A) {
     }
 }
 
+void printMatrix_d(int m, int n, double *A) {
+    double *h_A = (double *) malloc(sizeof(double) * m * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(double)*n*m, cudaMemcpyDeviceToHost));
+    printMatrix(m, n, h_A);
+    free(h_A);
+}
+
 void printDVec(int n, double *A) {
     for (int i = 0; i < n; i++) {
         printf("%f, ", A[i]);
@@ -57,6 +64,20 @@ void printIVec(int n, int *A) {
     for (int i = 0; i < n; i++) {
         printf("%d, ", A[i]);
     }
+}
+
+void printDVec_d(int n, double *A) {
+    double *h_A = (double *) malloc(sizeof(double) * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(double)*n, cudaMemcpyDeviceToHost));
+    printDVec(n, h_A);
+    free(h_A);
+}
+
+void printIVec_d(int n, int *A) {
+    int *h_A = (int *) malloc(sizeof(int) * n);
+    checkCudaErrors(cudaMemcpy(h_A, A, sizeof(int)*n, cudaMemcpyDeviceToHost));
+    printIVec(n, h_A);
+    free(h_A);
 }
 
 
@@ -768,6 +789,179 @@ void testCopyMat(int m, int n) {
     destroyDN_h(h_A_dn_copy);
 }
 
+
+void testVecUseCases() {
+    double h_A_val[5] = {1, 2, 3, 4, 5};
+    double h_B_val[5] = {2, 3, 4, 5, 6};
+    double n = 5;
+
+    // init vec with value
+    VEC_h *h_A = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_A, n, h_A_val);
+
+    VEC_h *h_B = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_B, n, h_B_val);
+
+    // move to gpu vec_d
+    VEC_d *d_A = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_A, d_A);
+
+    VEC_d *d_B = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_B, d_B);
+
+    printf("A:\n");
+    printDVec(n, h_A_val);
+    printf("\n");
+
+    printf("B:\n");
+    printDVec(n, h_B_val);
+    printf("\n");
+
+    // Add
+    VEC_d *d_C_add = (VEC_d *) malloc(sizeof(VEC_d)); //no initialization 
+    vecAdd(d_A, d_B, d_C_add);
+    
+    printf("Add:\n");
+    printDVec_d(n, d_C_add->d_val);
+    printf("\n");
+
+    // Inner Product
+    double c_inner = innerProduct(d_A, d_B);
+    printf("Inner:\n");
+    printf("%f\n", c_inner);
+
+    // Scale
+    VEC_d *d_C_sc = (VEC_d *) malloc(sizeof(VEC_d)); // no initialization 
+    scalarMulVec(1.5, d_A, d_C_sc);
+    printf("* 1.5:\n");
+    printDVec_d(n, d_C_sc->d_val);
+    printf("\n");
+
+    // Add inplace
+    vecAddInPlace(d_A, d_B);
+    printf("Inplace Add:\n");
+    printDVec_d(n, d_A->d_val);
+    printf("\n");
+
+    // Copy
+    VEC_h *h_A_copy = (VEC_h *) malloc(sizeof(VEC_h));
+    copyVEC_h(h_A, h_A_copy);
+    printf("copy A_h:\n");
+    printDVec(n, h_A_copy->h_val);
+    printf("\n");
+
+    VEC_d *d_A_copy = (VEC_d *) malloc(sizeof(VEC_d));
+    copyVEC_d(d_A, d_A_copy);
+    printf("copy A_d:\n");
+    printDVec_d(n, d_A_copy->d_val);
+    printf("\n");
+    vecAddInPlace(d_A_copy, d_B);
+    printDVec_d(n, d_A_copy->d_val);
+    printf("\n");
+    printDVec_d(n, d_A->d_val);
+    printf("\n");
+
+    destroyVEC_d(d_A);
+    destroyVEC_d(d_B);
+    destroyVEC_d(d_C_add);
+    destroyVEC_d(d_A_copy);
+}
+
+
+void testMatUseCases() {
+    double h_A_val[6] = {1, 2, 3, 4, 5, 6};
+    double h_B_val[6] = {2, 3, 4, 5, 6, 7};
+
+    double m = 3;
+    double n = 2;
+    
+    // init csr and vec
+    DN_h *h_A_dn = (DN_h *) malloc(sizeof(DN_h));
+    initDN_h(h_A_dn, m, n, h_A_val);
+
+    CSR_h *h_A = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h2CSR_h(h_A_dn, h_A);
+
+    DN_h *h_B_dn = (DN_h *) malloc(sizeof(DN_h));
+    initDN_h(h_B_dn, m, n, h_B_val);
+
+    CSR_h *h_B = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h2CSR_h(h_B_dn, h_B);
+
+    CSR_d *d_A = (CSR_d *) malloc(sizeof(CSR_d));
+    CSR_h2d(h_A, d_A);
+
+    CSR_d *d_B = (CSR_d *) malloc(sizeof(CSR_d));
+    CSR_h2d(h_B, d_B);
+
+    printf("A:\n");
+    printMatrix_d(m, n, d_A->d_val);
+    printf("\n");
+
+    printf("B:\n");
+    printMatrix_d(m, n, d_B->d_val);
+    printf("\n");
+
+    printf("Add:\n");
+    CSR_d *d_C_add = (CSR_d *) malloc(sizeof(CSR_d));
+    matAdd(d_A, d_B, d_C_add);
+    printMatrix_d(d_C_add->m, d_C_add->n, d_C_add->d_val);
+    printf("\n");
+
+    printf("A * 1.5:\n");
+    CSR_d *d_C_sc = (CSR_d *) malloc(sizeof(CSR_d));
+    scalarMulMat(1.5, d_A, d_C_sc);
+    printMatrix_d(d_C_add->m, d_C_add->n, d_C_sc->d_val);
+    printf("\n");
+
+    double h_D_val[2] = {2, 3};
+    VEC_h *h_D = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_D, n, h_D_val);
+    VEC_d *d_D = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_D, d_D);
+    printf("Vec D:\n");
+    printDVec_d(d_D->n, d_D->d_val);
+    printf("\n");
+    VEC_d *d_C_mat_vec = (VEC_d *) malloc(sizeof(VEC_d));
+    matMulVec(d_A, d_D, d_C_mat_vec);
+    printf("Vec A * D:\n");
+    printDVec_d(d_C_mat_vec->n, d_C_mat_vec->d_val);
+    printf("\n");
+
+    double h_E_val[3] = {2, 3, 4};
+    VEC_h *h_E = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_E, m, h_E_val);
+    VEC_d *d_E = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_E, d_E);
+    printf("Vec E:\n");
+    printDVec_d(d_E->n, d_E->d_val);
+    printf("\n");
+    VEC_d *d_C_vec_mat = (VEC_d *) malloc(sizeof(VEC_d));
+    vecMulMat(d_E, d_A, d_C_vec_mat);
+    printf("Vec A * E:\n");
+    printDVec_d(d_C_vec_mat->n, d_C_vec_mat->d_val);
+    printf("\n");
+
+    double h_F_val[8] = {2, 3, 4, 5, 6, 7, 8, 9};
+    double k = 4;
+    DN_h *h_F_dn = (DN_h *) malloc(sizeof(DN_h));
+    initDN_h(h_F_dn, n, k, h_F_val);
+    CSR_h *h_F = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h2CSR_h(h_F_dn, h_F);
+    CSR_d *d_F = (CSR_d *) malloc(sizeof(CSR_d));
+    CSR_h2d(h_F, d_F);
+
+    printf("Mat F:\n");
+    printMatrix_d(d_F->m, d_F->n, d_F->d_val);
+    CSR_d *d_C_mat_mat = (CSR_d *) malloc(sizeof(CSR_d));
+    matMulMat(d_A, d_F, d_C_mat_mat);
+    printf("A * F\n");
+    printMatrix_d(d_C_mat_mat->m, d_C_mat_mat->n, d_C_mat_mat->d_val);
+
+
+}
+
+
 int main(int argc, char**argv) {
     checkCublasErrors(cublasCreate(&cublasHandle));
     checkCusparseErrors(cusparseCreate(&cusparseHandle));
@@ -784,6 +978,8 @@ int main(int argc, char**argv) {
     testCopyVec(1000000);
     testCopyMat(1000, 500);
 
+    // testVecUseCases();
+    // testMatUseCases();
 
     cublasDestroy(cublasHandle);
     cusparseDestroy(cusparseHandle);
