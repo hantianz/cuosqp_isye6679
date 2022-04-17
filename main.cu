@@ -65,50 +65,12 @@ void vecMinMaxProj(int n,
 }
 
 //// calculate transpose of a matrix A and store it in matrix B
-//void transpose(int n, int m, double A[][m], double B[][n]){
-//    for (int i = 0; i < n; ++i)
-//        for (int j = 0; j < m; ++j)
-//            *((B+j*n) + i) = *((A+i*n) + j);
-//}
-
-
-void get_input(int n, int m, double **P, double *Q, double *l, double *u, double **A){
-    FILE *myfile;
-    int i;
-    int j;
-
-    myfile=fopen("case2.txt", "r");
-
-    for(i = 0; i < n; i++)
-    {
-        for (j = 0 ; j < m; j++)
-        {
-            fscanf(myfile,"%lf",A[i]+j);
-        }
-    }
-
-    for(i = 0; i < n; i++)
-    {
-        for (j = 0 ; j < n; j++)
-        {
-            fscanf(myfile,"%lf",P[i]+j);
-        }
-    }
-
-    for(i = 0; i < n; i++)
-    {
-        fscanf(myfile,"%lf",Q+i);
-    }
-
-    for(i = 0; i < m; i++)
-    {
-        fscanf(myfile,"%lf",u+i);
-    }
-
-    for (i = 0; i < m; i++)
-        l[i] = 0 - INF;
-    fclose(myfile);
+void transpose(int n, int m, double *A, double *B){
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < m; ++j)
+            B[j*n+i] = A[i*m+j];
 }
+
 
 void inverseDiag(CSR_h *A, CSR_h *B){
     copyCSR_h(A,B);
@@ -207,7 +169,7 @@ void getDiagonal(CSR_h *K, CSR_h *M)
     int *d_rowPtr = (int *) malloc(sizeof(int) * (K->n+1));
     int *d_colInd = (int *) malloc(sizeof(int) * (K->n));
 
-    for (int i = 0; i < K->n; ++i) {
+    for (int i = 0; i < K->m; ++i) {
         int row_begin = K->h_rowPtr[i];
         int row_end = K->h_rowPtr[i+1];
 
@@ -411,8 +373,8 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 
         normR = normInf(r);
 
-        // printf("normR :%f\n", normR);
-        // printf("normB :%f\n", normB);
+//         printf("normR :%f\n", normR);
+//         printf("normB :%f\n", normB);
 
     }
     matMulVec(A, xNext, zNext);
@@ -455,6 +417,90 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 //        for (int j = 0; j < m; j++)
 //            B[i*n+j] = *((A+i*n) + j);
 //}
+
+//
+void readSparseMatrix(char * FILENAME, CSR_h *DST, int *n, int *m)
+{
+    FILE *myfile;
+    int nnz;
+    myfile = fopen(FILENAME, "r");
+    fscanf(myfile,"%i",n);
+    fscanf(myfile,"%i",m);
+    fscanf(myfile,"%i",&nnz);
+
+    //printf("%d, %d, %d", *n, *m, nnz);
+    double *h_val = (double *) malloc(sizeof(double) * nnz);
+    int *h_rowPtr = (int *) malloc(sizeof(int) * (*n+1));
+    int *h_colInd = (int *) malloc(sizeof(int) * nnz);
+    for(int i = 0; i < nnz; i++)
+    {
+        fscanf(myfile,"%lf",h_val+i);
+    }
+//    for(int i = 0; i < nnz; i++)
+//    {
+//        printf("%lf,",h_val[i]);
+//    }
+//    printf("\n");
+    for(int i = 0; i < *n + 1; i++)
+    {
+        fscanf(myfile,"%i",h_rowPtr+i);
+    }
+//    for(int i = 0; i < *n + 1; i++)
+//    {
+//        printf("%i,",h_rowPtr[i]);
+//    }
+//    printf("\n");
+    for(int i = 0; i < nnz; i++)
+    {
+        fscanf(myfile,"%i",h_colInd+i);
+    }
+    initCSR_h(DST, *n, *m, nnz, h_val, h_rowPtr, h_colInd);
+}
+
+void readSparseMatrix(char * FILENAME, CSR_h *DST)
+{
+    FILE *myfile;
+    int n, m, nnz;
+    myfile = fopen(FILENAME, "r");
+    fscanf(myfile,"%i",&n);
+    fscanf(myfile,"%i",&m);
+    fscanf(myfile,"%i",&nnz);
+
+    //printf("%d, %d, %d\n", n, m, nnz);
+    double *h_val = (double *) malloc(sizeof(double) * nnz);
+    int *h_rowPtr = (int *) malloc(sizeof(int) * (n+1));
+    int *h_colInd = (int *) malloc(sizeof(int) * nnz);
+    for(int i = 0; i < nnz; i++)
+    {
+    fscanf(myfile,"%lf",h_val+i);
+    }
+
+    for(int i = 0; i < n + 1; i++)
+    {
+    fscanf(myfile,"%i",h_rowPtr+i);
+    }
+    for(int i = 0; i < nnz; i++)
+    {
+    fscanf(myfile,"%i",h_colInd+i);
+    }
+    initCSR_h(DST, n, m, nnz, h_val, h_rowPtr, h_colInd);
+
+}
+
+void readVector(char * FILENAME, VEC_h *DST)
+{
+    FILE *myfile;
+    int n;
+    myfile = fopen(FILENAME, "r");
+    fscanf(myfile,"%i",&n);
+    double *h_val = (double *) malloc(sizeof(double) * n);
+    for(int i = 0; i < n; i++)
+    {
+        fscanf(myfile,"%lf",h_val+i);
+    }
+    initVEC_h(DST, n, h_val);
+}
+
 int main() {
 
     checkCublasErrors(cublasCreate(&cublasHandle));
@@ -462,7 +508,7 @@ int main() {
     //
     int n,m;
     double sigma = 0.000001, alpha=1.6, rho = 0.5;
-
+    char testcase[30]="data/instance-3x4/";
     //get n and m
     // input
 //    //case 1
@@ -471,57 +517,95 @@ int main() {
 //  case 2
 //    n = 10;
 //    m = 10;
-    double P_h[n*n],Q_h_val[n], A_h[m*n], AT_h[n*m], l_h_val[m],u_h_val[m];
+//    double P_h[n*n],Q_h_val[n], A_h[m*n], AT_h[n*m], l_h_val[m],u_h_val[m];
+    CSR_h *A_csrh = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_h *AT_csrh = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_h *P_csrh = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h *AT_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    DN_h *A_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    VEC_h *l_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *u_h = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_d));
+    char testDST[30];
+    strcpy(testDST, testcase);
+    char filename[30] = "A.txt";
+    strcat(testDST, filename);
+    //printf("%s\n", testDST);
+    readSparseMatrix(testDST,A_csrh,&m,&n);
+    CSR_h2DN_h(A_csrh, A_dh_h);
+    copyDN_h(A_dh_h, AT_dh_h);
+    AT_dh_h->n = A_dh_h->m;
+    AT_dh_h->m = A_dh_h->n;
+    transpose(m, n, A_dh_h->h_val, AT_dh_h->h_val);
+    DN_h2CSR_h(AT_dh_h, AT_csrh);
+
+    strcpy(testDST, testcase);
+    char filename_P[30] = "P.txt";
+    strcat(testDST, filename_P);
+    readSparseMatrix(testDST,P_csrh);
+
+    strcpy(testDST, testcase);
+    char filename_Q[30] = "q.txt";
+    strcat(testDST, filename_Q);
+    readVector(testDST,Q_h);
+
+    strcpy(testDST, testcase);
+    char filename_l[30] = "l.txt";
+    strcat(testDST, filename_l);
+    readVector(testDST,l_h);
+
+
+    strcpy(testDST, testcase);
+    char filename_u[30] = "u.txt";
+    strcat(testDST, filename_u);
+    readVector(testDST,u_h);
+    //readSparseMatrix("")
     // case 1
-    P_h[0] = 0.01;
-    P_h[1] = 0.0;
-    P_h[2] = 0.0;
-    P_h[3] = 0.2889654;
-    Q_h_val[0] = -1.07296862;
-    Q_h_val[1] = 0.86540763;
-    A_h[0] = 0.0;
-    A_h[1] = 0.0;
-    A_h[2] = 0.0;
-    A_h[3] = -2.3015387;
-    AT_h[0] = 0.0;
-    AT_h[1] = 0.0;
-    AT_h[2] = 0.0;
-    AT_h[3] = -2.3015387;
-    l_h_val[0] = 0 - INF;
-    l_h_val[1] = 0 - INF;
-    u_h_val[0] = 0.22957721;
-    u_h_val[1] = -2.11756839;
+//    P_h[0] = 0.01;
+//    P_h[1] = 0.0;
+//    P_h[2] = 0.0;
+//    P_h[3] = 0.2889654;
+//    Q_h_val[0] = -1.07296862;
+//    Q_h_val[1] = 0.86540763;
+//    A_h[0] = 0.0;
+//    A_h[1] = 0.0;
+//    A_h[2] = 0.0;
+//    A_h[3] = -2.3015387;
+//    AT_h[0] = 0.0;
+//    AT_h[1] = 0.0;
+//    AT_h[2] = 0.0;
+//    AT_h[3] = -2.3015387;
+//    l_h_val[0] = 0 - INF;
+//    l_h_val[1] = 0 - INF;
+//    u_h_val[0] = 0.22957721;
+//    u_h_val[1] = -2.11756839;
  //   get_input(n,m,P,Q,l,u,A);
     //get AT = A^T
     //transpose(m,n, A_h, AT_h);
     //initialize x,y,z
     double R_h[m*m];
-    calculateR(m, R_h, l_h_val, u_h_val, rho);
+    calculateR(m, R_h, l_h->h_val, u_h->h_val, rho);
     //double A_2d[m*n];
     //double AT_2d[n*m];
     //double P_2d[n*n];
 
-    DN_h *A_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    //DN_h *A_dh_h = (DN_h *) malloc(sizeof(DN_h));
     //twoD2oneD(m, n, A_h, A_2d);
-    initDN_h(A_dh_h, m, n, A_h);
-    CSR_h *A_csrh = (CSR_h *) malloc(sizeof(CSR_h));
-    DN_h2CSR_h(A_dh_h, A_csrh);
+    //initDN_h(A_dh_h, m, n, A_h);
+    //DN_h2CSR_h(A_dh_h, A_csrh);
     CSR_d *A = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(A_csrh, A);
 
-    DN_h *AT_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    //DN_h *AT_dh_h = (DN_h *) malloc(sizeof(DN_h));
     //twoD2oneD(n, m, AT_h, AT_2d);
-    initDN_h(AT_dh_h, n, m, AT_h);
-    CSR_h *AT_csrh = (CSR_h *) malloc(sizeof(CSR_h));
-    DN_h2CSR_h(AT_dh_h, AT_csrh);
+    //initDN_h(AT_dh_h, n, m, AT_h);
+    //DN_h2CSR_h(AT_dh_h, AT_csrh);
     CSR_d *AT = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(AT_csrh, AT);
 
-    DN_h *P_dh_h = (DN_h *) malloc(sizeof(DN_h));
-    initDN_h(P_dh_h, n, n, P_h);
-
-    CSR_h *P_csrh = (CSR_h *) malloc(sizeof(CSR_h));
-    DN_h2CSR_h(P_dh_h, P_csrh);
+    //DN_h *P_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    //initDN_h(P_dh_h, n, n, P_h);
+    //DN_h2CSR_h(P_dh_h, P_csrh);
     CSR_d *P = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(P_csrh, P);
 
@@ -547,16 +631,11 @@ int main() {
     VEC_h *x_h = (VEC_h *) malloc(sizeof(VEC_h));
     VEC_h *y_h = (VEC_h *) malloc(sizeof(VEC_h));
     VEC_h *z_h = (VEC_h *) malloc(sizeof(VEC_h));
-    VEC_h *l_h = (VEC_h *) malloc(sizeof(VEC_h));
-    VEC_h *u_h = (VEC_h *) malloc(sizeof(VEC_h));
-    VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_d));
+
 
     initVEC_h(x_h, n, x_h_val);
     initVEC_h(y_h, m, y_h_val);
     initVEC_h(z_h, m, z_h_val);
-    initVEC_h(l_h, m, l_h_val);
-    initVEC_h(u_h, m, u_h_val);
-    initVEC_h(Q_h, m, Q_h_val);
 
     VEC_d *x = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *y = (VEC_d *) malloc(sizeof(VEC_d));
@@ -594,7 +673,9 @@ int main() {
         // update x
         VEC_d *temp1 = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *temp2 = (VEC_d *) malloc(sizeof(VEC_d));
-
+        printf("%d\n", k);
+        printVecd(xNext);
+        printVecd(zNext);
         scalarMulVec(alpha, xNext, temp1); // temp1 = alpha * xNext;
         scalarMulVec(1 - alpha, x, temp2); // temp2 = (1 - alpha) * x;
         vecAdd(temp1, temp2, x); // x = alpha * xNext +  (1 - alpha) * x;
