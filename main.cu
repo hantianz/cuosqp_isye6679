@@ -286,9 +286,8 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     // printDVec_d(M->nnz, M->d_val);
     // printDVec_d(MINV->nnz, MINV->d_val);
 
-    printCSR_h(K_h);
-    printCSR_h(M_h);
-    printDVec(M_h->nnz, M_h->h_val);
+    printCSRh(K_h);
+    printCSRh(M_h);
     exit(-1);
 
     CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_h));
