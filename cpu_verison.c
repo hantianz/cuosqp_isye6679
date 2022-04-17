@@ -268,13 +268,6 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
     matAdd(n, n, temp2, temp3, temp4);
     matAdd(n, n, temp4, P, K);  // K = P + sigma * I + A^T * R * A
 
-    
-    printf("temp4:");
-    printMatrix(n, n, temp4);  
-    printf("P:");
-    printMatrix(n, n, P);
-
-
     //calculate preconditioner
     double M[n][n], MINV[n][n];
     calculatePrecond(n, K, M);
@@ -311,10 +304,10 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
 
 
 
-    printf("r");
-    printDVec(n, r);
-    printf("normR :%f\n", normR);
-    printf("normB :%f\n", normB);
+    // printf("r");
+    // printDVec(n, r);
+    // printf("normR :%f\n", normR);
+    // printf("normB :%f\n", normB);
 
 
     while (normR > epsilon * normB)
@@ -328,8 +321,8 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         alpha = temp12 / temp13;
         //calculate x^k+1
         scalarMulVec(n, alpha, p, temp8);
-        printf("p:");
-        printDVec(n, p);
+        // printf("p:");
+        // printDVec(n, p);
 
         if (k==0)
             vecAdd(n, x, temp8, xNext); // x = x + alpha * p;
@@ -341,8 +334,8 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         scalarMulVec(n,alpha, temp8, temp9); // temp9 = alpha * K * p;
         vecAdd(n, r, temp9, r);
 
-        printf("temp8:");
-        printDVec(n, temp8);   
+        // printf("temp8:");
+        // printDVec(n, temp8);   
 
         //calculate y^k+1
         double yNew[n];
@@ -443,7 +436,7 @@ int main() {
 
         solveKKT(n, m, x, y, z, P, Q, A, AT, l,u, R, xNext, zNext, rho, sigma, epsilon);
 
-        printDVec(n, xNext);
+        // printDVec(n, xNext);
 
         // update x
         double temp1[n], temp2[n];
@@ -470,7 +463,6 @@ int main() {
         memcpy(z, zNextReal, sizeof(zNextReal)); // z = zNextReal
         printf("Round:%d, x1:%.6f, x2:%.6f, obj:%.6f\n", k, x[0], x[1], objValue(n,P,Q,x));
         k += 1;
-        exit(0);
 
     }
     return 0;
