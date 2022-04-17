@@ -2,24 +2,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "support.h"
 #include "cublas_v2.h"
 #include <cusparse.h>
 
 void checkCudaErrors(cudaError_t cuda_ret) {
     if(cuda_ret != cudaSuccess) {
         printf("CUDA Error: %s", cudaGetErrorString (cuda_ret));
+        exit(-1);
     }
 }
 void checkCublasErrors(cublasStatus_t cuda_ret) {
     if(cuda_ret != CUBLAS_STATUS_SUCCESS) {
         printf("Cublas Error: %d", cuda_ret);
+        exit(-1);
     }
 }
 
 void checkCusparseErrors(cusparseStatus_t cuda_ret) {
     if(cuda_ret != CUSPARSE_STATUS_SUCCESS) {
         printf("Cusparse Error: %s", cusparseGetErrorString(cuda_ret));
+        exit(-1);
     }
 }
 
