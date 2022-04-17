@@ -158,6 +158,33 @@ void calculateR(int n, double *R, double *l, double *u, double rho){
     }
 }
 
+// if l==u, penalty = 1000*rho, otherwise penalty = rho
+void calculateR(int n, CSR_h *R, double *l, double *u, double rho){
+    R->n = n;
+    R->m = n;
+    R->nnz = n;
+    double *d_val = (double *) malloc(sizeof(double) *n);
+    int *d_rowPtr = (int *) malloc(sizeof(int) *(n+1));
+    int *d_colInd = (int *) malloc(sizeof(int) *n);
+    for (int i = 0; i < n; ++i) {
+        if (l[i] == u[i])
+        {
+            d_val[i] = rho * 1000;
+        }
+        else
+        {
+            d_val[i] = rho;
+        }
+        d_rowPtr[i] = i;
+        d_colInd[i] = i;
+    }
+    d_rowPtr[n] = n;
+    R->h_rowPtr = d_rowPtr;
+    R->h_colInd = d_colInd;
+    R->h_val = d_val;
+}
+
+
 //get diagonal element of K into M
 void getDiagonal(CSR_h *K, CSR_h *M)
 {
@@ -509,8 +536,8 @@ int main() {
     checkCusparseErrors(cusparseCreate(&cusparseHandle));
     //
     int n,m;
-    double sigma = 0.000001, alpha=1.6, rho = 0.5;
-    char testcase[30]="data/instance-300x400/";
+    double sigma = 0.000001, alpha=1.6, rho =  0.5;//9.054556534215896;
+    char testcase[40]="data/instance-3x4/";
     //get n and m
     // input
 //    //case 1
@@ -528,18 +555,18 @@ int main() {
     VEC_h *l_h = (VEC_h *) malloc(sizeof(VEC_h));
     VEC_h *u_h = (VEC_h *) malloc(sizeof(VEC_h));
     VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_d));
-    char testDST[30];
+    char testDST[40];
     strcpy(testDST, testcase);
-    char filename[30] = "A.txt";
+    char filename[40] = "A.txt";
     strcat(testDST, filename);
     //printf("%s\n", testDST);
     readSparseMatrix(testDST,A_csrh,&m,&n);
-    CSR_h2DN_h(A_csrh, A_dh_h);
-    copyDN_h(A_dh_h, AT_dh_h);
-    AT_dh_h->n = A_dh_h->m;
-    AT_dh_h->m = A_dh_h->n;
-    transpose(m, n, A_dh_h->h_val, AT_dh_h->h_val);
-    DN_h2CSR_h(AT_dh_h, AT_csrh);
+//    CSR_h2DN_h(A_csrh, A_dh_h);
+//    copyDN_h(A_dh_h, AT_dh_h);
+//    AT_dh_h->n = A_dh_h->m;
+//    AT_dh_h->m = A_dh_h->n;
+//    transpose(m, n, A_dh_h->h_val, AT_dh_h->h_val);
+//    DN_h2CSR_h(AT_dh_h, AT_csrh);
 
     strcpy(testDST, testcase);
     char filename_P[30] = "P.txt";
@@ -585,8 +612,7 @@ int main() {
     //get AT = A^T
     //transpose(m,n, A_h, AT_h);
     //initialize x,y,z
-    double R_h[m*m];
-    calculateR(m, R_h, l_h->h_val, u_h->h_val, rho);
+    //double R_h[m];
     //double A_2d[m*n];
     //double AT_2d[n*m];
     //double P_2d[n*n];
@@ -603,18 +629,18 @@ int main() {
     //initDN_h(AT_dh_h, n, m, AT_h);
     //DN_h2CSR_h(AT_dh_h, AT_csrh);
     CSR_d *AT = (CSR_d *) malloc(sizeof(CSR_d));
-    CSR_h2d(AT_csrh, AT);
-
+    //CSR_h2d(AT_csrh, AT);
+    transpose(A,AT);
     //DN_h *P_dh_h = (DN_h *) malloc(sizeof(DN_h));
     //initDN_h(P_dh_h, n, n, P_h);
     //DN_h2CSR_h(P_dh_h, P_csrh);
     CSR_d *P = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(P_csrh, P);
 
-    DN_h *R_dh_h = (DN_h *) malloc(sizeof(DN_h));
-    initDN_h(R_dh_h, m, m, R_h);
+    //DN_h *R_dh_h = (DN_h *) malloc(sizeof(DN_h));
+    //initDN_h(R_dh_h, m, m, R_h);
     CSR_h *R_csrh = (CSR_h *) malloc(sizeof(CSR_h));
-    DN_h2CSR_h(R_dh_h, R_csrh);
+    calculateR(m, R_csrh, l_h->h_val, u_h->h_val, rho);
     CSR_d *R = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(R_csrh, R);
 
@@ -667,6 +693,15 @@ int main() {
 
         VEC_d *xNext = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *zNext = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *xOld = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *yOld = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *zOld = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *xDiff = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *yDiff = (VEC_d *) malloc(sizeof(VEC_d));
+        VEC_d *zDiff = (VEC_d *) malloc(sizeof(VEC_d));
+        copyVEC_d(x, xOld);
+        copyVEC_d(y, yOld);
+        copyVEC_d(z, zOld);
 
         //calculate the penalty matrix R and its inverse RINV
 
@@ -681,6 +716,10 @@ int main() {
         scalarMulVec(alpha, xNext, temp1); // temp1 = alpha * xNext;
         scalarMulVec(1 - alpha, x, temp2); // temp2 = (1 - alpha) * x;
         vecAdd(temp1, temp2, x); // x = alpha * xNext +  (1 - alpha) * x;
+
+        //calculate xDiff
+        scalarMulVec(-1, xOld, temp1); // temp1 = alpha * xNext;
+        vecAdd(x, temp1, xDiff);
 
         // update z
         VEC_d *temp3 = (VEC_d *) malloc(sizeof(VEC_d));
@@ -712,20 +751,29 @@ int main() {
 
         vecMinMaxProj(l->n, temp7, l, u, zNextReal); // zNextReal is the projection of temp7
 
+        //calculate zDiff
+        scalarMulVec(-1, zOld, temp1); // temp1 = alpha * xNext;
+        vecAdd(zNextReal, temp1, zDiff);
+
         // update y
         scalarMulVec(-1, zNextReal, temp3); // temp3 = -zNextReal;
         vecAdd(temp6, temp3, temp4); // temp4 = alpha * zNext + (1 - alpha) * z - zNextReal;
         matMulVec(R, temp4, temp5); // temp5 = R * (alpha * zNext + (1 - alpha) * z - zNextReal);
         vecAddInPlace(y, temp5); // y = y + temp5;
-        
+
+        //calculate yDiff
+        scalarMulVec(-1, yOld, temp1); // temp1 = alpha * xNext;
+        vecAdd(y, temp1, yDiff);
+
         // update z^k to z^(k+1)
 
         
         // printf("%d\n", zNextReal->n);
         // printVecd(zNextReal);
         copyVEC_d(zNextReal, z);
-
+        printf("\n");
         printf("Round:%d, obj:%.6f\n", k, objValue(n,P,Q,x));
+        printf("norm diff x:%.6f, norm diff y:%.6f, norm diff z:%.6f\n", normInf(xDiff),normInf(yDiff),normInf(zDiff));
         //printVecd(x);
         k += 1;
    
