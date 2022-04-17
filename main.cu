@@ -383,6 +383,9 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 //            B[i*n+j] = *((A+i*n) + j);
 //}
 int main() {
+
+    checkCublasErrors(cublasCreate(&cublasHandle));
+    checkCusparseErrors(cusparseCreate(&cusparseHandle));
     //
     int n,m;
     double sigma = 0.000001, alpha=1.6, rho = 0.5;
@@ -542,5 +545,9 @@ int main() {
         destroyVEC_d(zNext);
 
     }
+
+    cublasDestroy(cublasHandle);
+    cusparseDestroy(cusparseHandle);
+ 
     return 0;
 }
