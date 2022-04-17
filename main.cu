@@ -349,6 +349,31 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
         normR = normInf(r);
     }
     matMulVec(A, xNext, zNext);
+    destroyVEC_d(temp5);
+    destroyVEC_d(temp6);
+    destroyVEC_d(temp7);
+    destroyVEC_d(temp8);
+    destroyVEC_d(temp9);
+    destroyVEC_d(temp10);
+    destroyVEC_d(temp11);
+    destroyVEC_d(b);
+    destroyVEC_d(r);
+    destroyVEC_d(y_kkt);
+    destroyVEC_d(p);
+
+    destroyCSR_d(temp1);
+    destroyCSR_d(temp2);
+    destroyCSR_d(temp3);
+    destroyCSR_d(temp4);
+    destroyCSR_d(K);
+    destroyCSR_d(I);
+    destroyCSR_d(M);
+    destroyCSR_d(MINV);
+
+    destroyCSR_h(M_h);
+    destroyCSR_h(MINV_h);
+    destroyCSR_h(K_h);
+
 }
 
 //void twoD2oneD(int n, int m, double* A, double *B)
@@ -506,6 +531,16 @@ int main() {
         z = zNextReal;
         printf("Round:%d, x1:%.6f, x2:%.6f, obj:%.6f\n", k, x->d_val[0], x->d_val[1], objValue(n,P,Q,x));
         k += 1;
+        destroyVEC_d(temp1);
+        destroyVEC_d(temp2);
+        destroyVEC_d(temp3);
+        destroyVEC_d(temp4);
+        destroyVEC_d(temp5);
+        destroyVEC_d(temp6);
+        destroyVEC_d(temp7);
+        destroyVEC_d(xNext);
+        destroyVEC_d(zNext);
+
     }
     return 0;
 }
