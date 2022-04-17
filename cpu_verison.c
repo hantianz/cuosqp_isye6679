@@ -242,7 +242,7 @@ int termination(int n, int m, double x[n], double y[m], double z[m], double P[n]
     matMulVec(n, m, AT, y, temp4); // temp4 = A^T * y;
     vecAdd(n, temp3, temp4, temp5); // temp5 = temp3 + temp4;
     vecAdd(n, temp5, Q, residualDual); // residualDual = temp5 + Q;
-    if ((norm2(m, residualPrimal) <= epsilonPrimal) && (norm2(n, residualDual) <= epsilonDual))
+    if ((normInf(m, residualPrimal) <= epsilonPrimal) && (normInf(n, residualDual) <= epsilonDual))
         return 1;
     else
         return 0;
@@ -293,8 +293,8 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
     double p[n];
     scalarMulVec(n, -1, y_kkt, p);
     int k = 0;
-    double normR = norm2(n,r);
-    double normB = norm2(n,b);
+    double normR = normInf(n,r);
+    double normB = normInf(n,b);
     while (normR > epsilon * normB)
     {
         //calculate a^k
@@ -327,7 +327,7 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         scalarMulVec(n, beta, p, temp9); // temp9 = beta * p;
         vecAdd(n, temp8, temp9, p);
         k+=1;
-        normR = norm2(n,r);
+        normR = normInf(n,r);
     }
     matMulVec(m,n, A, xNext, zNext);
 }
@@ -339,29 +339,29 @@ int main() {
     int n,m;
     //get n and m
     // input
-//    //case 1
-//    n = 2;
-//    m = 2;
+   //case 1
+   n = 2;
+   m = 2;
 //  case 2
-    n = 10;
-    m = 10;
+    // n = 10;
+    // m = 10;
     double P[n][n],Q[n], A[m][n], AT[n][m], l[m],u[m];
 //    // case 1
-//    P[0][0] = 0.01;
-//    P[0][1] = 0.0;
-//    P[1][0] = 0.0;
-//    P[1][1] = 0.2889654;
-//    Q[0] = -1.07296862;
-//    Q[1] = 0.86540763;
-//    A[0][0] = 0.0;
-//    A[0][1] = 0.0;
-//    A[1][0] = 0.0;
-//    A[1][1] = -2.3015387;
-//    l[0] = 0 - INF;
-//    l[1] = 0 - INF;
-//    u[0] = 0.22957721;
-//    u[1] = -2.11756839;
-    get_input(n,m,P,Q,l,u,A);
+   P[0][0] = 0.01;
+   P[0][1] = 0.0;
+   P[1][0] = 0.0;
+   P[1][1] = 0.2889654;
+   Q[0] = -1.07296862;
+   Q[1] = 0.86540763;
+   A[0][0] = 0.0;
+   A[0][1] = 0.0;
+   A[1][0] = 0.0;
+   A[1][1] = -2.3015387;
+   l[0] = 0 - INF;
+   l[1] = 0 - INF;
+   u[0] = 0.22957721;
+   u[1] = -2.11756839;
+    // get_input(n,m,P,Q,l,u,A);
     //get AT = A^T
     transpose(m,n, A, AT);
     //initialize x,y,z

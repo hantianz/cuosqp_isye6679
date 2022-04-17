@@ -615,7 +615,6 @@ int main() {
         vecAdd(temp3, temp4, temp6);  // temp6 = alpha * zNext + (1 - alpha) * z;
         vecAdd(temp5, temp6, temp7);    // temp7 = alpha * zNext + (1 - alpha) * z + R^(-1) * y
 
-
         printVecd(xNext);
         printVecd(zNext);
         // printVecd(temp1);
