@@ -105,7 +105,7 @@ void inverseDiag(CSR_h *A, CSR_h *B){
 
 
 // fill a diagonal n*n matrix A with val on each diagonal entry
-void initializeDiagMat(int n, double val, CSR_d *A){
+void initializeDiagMat(int n, double val, CSR_h *A){
     A->n = n;
     A->m = n;
     A->nnz = n;
@@ -117,22 +117,9 @@ void initializeDiagMat(int n, double val, CSR_d *A){
         d_colInd[i] = i;
     }
     d_rowPtr[n] = n;
-    A->d_rowPtr = d_rowPtr;
-    A->d_colInd = d_colInd;
-    A->d_val = d_val;
-    if(A->nnz > 0) {
-        checkCusparseErrors(cusparseCreateCsr(&A->descr,
-                                              n,
-                                              n,
-                                              n,
-                                              d_rowPtr,
-                                              d_colInd,
-                                              d_val,
-                                              CUSPARSE_INDEX_32I,
-                                              CUSPARSE_INDEX_32I,
-                                              CUSPARSE_INDEX_BASE_ZERO,
-                                              CUDA_R_64F));
-    }
+    A->h_rowPtr = d_rowPtr;
+    A->h_colInd = d_colInd;
+    A->h_val = d_val;
 }
 
 //// min(l) max(u) projection of an vector A to B
@@ -224,6 +211,7 @@ double objValue(int n, CSR_d *P, VEC_d *q, VEC_d *x)
     VEC_d *temp = (VEC_d *) malloc(sizeof(VEC_d));
     vecMulMat(x,P,temp);
     double obj = 0.5 * innerProduct(temp, x) + innerProduct(q, x);
+    destroyVEC_d(temp);
     return obj;
 }
 
@@ -249,7 +237,16 @@ int termination(VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CSR_d *A, CSR_
     matMulVec(AT, y, temp4); // temp4 = A^T * y;
     vecAdd(temp3, temp4, temp5); // temp5 = temp3 + temp4;
     vecAdd(temp5, Q, residualDual); // residualDual = temp5 + Q;
-    if ((normInf(residualPrimal) <= epsilonPrimal) && (normInf(residualDual) <= epsilonDual))
+    double residualPrimalDouble = normInf(residualPrimal);
+    double residualDualDouble = normInf(residualDual);
+    destroyVEC_d(temp1);
+    destroyVEC_d(temp2);
+    destroyVEC_d(temp3);
+    destroyVEC_d(temp4);
+    destroyVEC_d(temp5);
+    destroyVEC_d(residualPrimal);
+    destroyVEC_d(residualDual);
+    if (residualPrimalDouble <= epsilonPrimal) && (residualDualDouble <= epsilonDual))
         return 1;
     else
         return 0;
@@ -261,7 +258,9 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 {
     CSR_d *K = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *I = (CSR_d *) malloc(sizeof(CSR_d));
-    initializeDiagMat(n, 1, I);
+    CSR_h *I_h = (CSR_h *) malloc(sizeof(CSR_d));
+    initializeDiagMat(n, 1, I_h);
+    CSR_h2d(I_h, I);
     CSR_d *temp1 = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *temp2 = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *temp3 = (CSR_d *) malloc(sizeof(CSR_d));
@@ -373,6 +372,7 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     destroyCSR_h(M_h);
     destroyCSR_h(MINV_h);
     destroyCSR_h(K_h);
+    destroyCSR_h(I_h);
 
 }
 
@@ -543,8 +543,18 @@ int main() {
         destroyVEC_d(temp7);
         destroyVEC_d(xNext);
         destroyVEC_d(zNext);
-
     }
+
+    destroyVEC_d(x);
+    destroyVEC_d(y);
+    destroyVEC_d(z);
+    destroyVEC_d(l);
+    destroyVEC_d(u);
+    destroyVEC_d(Q);
+    destroyCSR_d(A);
+    destroyCSR_d(AT);
+    destroyCSR_d(R);
+    destroyCSR_d(RINV);
 
     cublasDestroy(cublasHandle);
     cusparseDestroy(cusparseHandle);
