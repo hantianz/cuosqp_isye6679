@@ -117,6 +117,13 @@ void matAdd_cpu(int n, int m, double *A, double *B, double *C){
             C[i*m+j] = A[i*m+j] + B[i*m+j];
 }
 
+void scalarMulMat_cpu(int m, int n, double val, double *A, double *B)
+{
+    for (int i = 0; i < m * n; ++i)
+        B[i] = A[i] * val;
+}
+
+
 
 void verifyVecAdd(int n, double *A, double *B, double *C_gpu) {
     const float relativeTolerance = 1e-6;
@@ -233,7 +240,7 @@ void verifyMatAdd(int m, int n, double *A, double *B, double *C_gpu) {
     double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
     printf("CPU time %fs, ", time_used);
 
-      for(int i = 0; i < n; i++) {
+      for(int i = 0; i < m*n; i++) {
         double relativeError = (C_cpu[i] - C_gpu[i])/ C_cpu[i];
         if (relativeError > relativeTolerance || relativeError < -relativeTolerance) {
           printf("TEST FAILED\n");
@@ -255,15 +262,39 @@ void verifyMatMulMat(int m, int n, int k, double *A, double *B, double *C_gpu) {
     double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
     printf("CPU time %fs, ", time_used);
 
-      for(int i = 0; i < n; i++) {
+    for(int i = 0; i < m*k; i++) {
+        double relativeError = (C_cpu[i] - C_gpu[i])/ C_cpu[i];
+        if (relativeError > relativeTolerance || relativeError < -relativeTolerance) {
+          printf("TEST FAILED\n");
+          exit(0);
+         }
+    }
+    printf("TEST PASSED\n");
+}
+
+
+void verifyScalarMulMat(int m, int n, double val, double *A, double* C_gpu) {
+    const float relativeTolerance = 1e-6;
+    double C_cpu[m*n];
+
+    clock_t tic = clock(); 
+    scalarMulMat_cpu(m, n, val, A, C_cpu);
+    clock_t toc = clock();
+
+    double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
+    printf("CPU time %fs, ", time_used);
+  
+
+    for(int i = 0; i < m*n; i++) {
         double relativeError = (C_cpu[i] - C_gpu[i])/ C_cpu[i];
         if (relativeError > relativeTolerance || relativeError < -relativeTolerance) {
           printf("TEST FAILED\n");
           exit(0);
         }
-      }
-      printf("TEST PASSED\n");
+    }
+  printf("TEST PASSED\n");
 }
+
 
 
 void testVecAdd(int n) {
@@ -308,6 +339,50 @@ void testVecAdd(int n) {
     destroyVEC_h(h_A);
     destroyVEC_h(h_B);
     destroyVEC_h(h_C);
+}
+
+void testVecAddInPlace(int n) {
+    printf("- TEST vecAddInPlace\n");
+    double* h_A_val = (double*) malloc( sizeof(double)*n );
+    double* h_B_val = (double*) malloc( sizeof(double)*n );
+    generateRandomVector(n, h_A_val);
+    generateRandomVector(n, h_B_val);
+
+    // init vec with value
+    VEC_h *h_A = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_A, n, h_A_val);
+
+    VEC_h *h_B = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_B, n, h_B_val);
+
+    VEC_h *h_old_A = (VEC_h *) malloc(sizeof(VEC_h));
+    copyVEC_h(h_A, h_old_A);
+
+    // move to gpu vec_d
+    VEC_d *d_A = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_A, d_A);
+
+    VEC_d *d_B = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_B, d_B);
+
+    clock_t tic = clock(); 
+    vecAddInPlace(d_A, d_B);
+    clock_t toc = clock();
+
+    VEC_h *h_new_A = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_d2h(d_A, h_new_A);
+
+    double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
+    printf("GPU time %fs, ", time_used);
+
+    // move to cpu
+    verifyVecAdd(n, h_old_A->h_val, h_B->h_val, h_new_A->h_val);
+
+    destroyVEC_d(d_A);
+    destroyVEC_d(d_B);
+    destroyVEC_h(h_A);
+    destroyVEC_h(h_B);
+    destroyVEC_h(h_old_A);
 }
 
 void testInnerProduct(int n) {
@@ -428,6 +503,7 @@ void testMatMulVec(int m, int n) {
     destroyCSR_h(h_A);
     destroyVEC_h(h_B);
     destroyVEC_h(h_C);
+    destroyDN_h(h_A_dn);
 }
 
 void testVecMulMat(int m, int n) {
@@ -476,6 +552,7 @@ void testVecMulMat(int m, int n) {
     destroyCSR_h(h_A);
     destroyVEC_h(h_B);
     destroyVEC_h(h_C);
+    destroyDN_h(h_A_dn);
 }
 
 void testMatAdd(int m, int n) {
@@ -529,6 +606,52 @@ void testMatAdd(int m, int n) {
     destroyCSR_h(h_A);
     destroyCSR_h(h_B);
     destroyCSR_h(h_C);
+    destroyDN_h(h_A_dn);
+    destroyDN_h(h_B_dn);
+    destroyDN_h(h_C_dn);
+}
+
+void testScalarMulMat(int m, int n, double sc) {
+    printf("- TEST matAdd\n");
+
+    double* h_A_val = (double *) malloc(sizeof(double)*n*m);
+
+    generateRandomSparseMatrix(m, n, h_A_val, 0.2);
+    
+    // init csr 
+    DN_h *h_A_dn = (DN_h *) malloc(sizeof(DN_h));
+    initDN_h(h_A_dn, m, n, h_A_val);
+
+    CSR_h *h_A = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h2CSR_h(h_A_dn, h_A);
+
+    // move to gpu
+    CSR_d *d_A = (CSR_d *) malloc(sizeof(CSR_d));
+    CSR_h2d(h_A, d_A);
+
+    // call function   
+    CSR_d *d_C = (CSR_d *) malloc(sizeof(CSR_d));
+
+    clock_t tic = clock(); 
+    scalarMulMat(sc, d_A, d_C);
+    clock_t toc = clock();
+    double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
+    printf("GPU time %fs, ", time_used);
+
+    CSR_h *h_C = (CSR_h*) malloc(sizeof(CSR_h));
+    CSR_d2h(d_C, h_C);
+
+    DN_h *h_C_dn = (DN_h *) malloc(sizeof(DN_h));
+    CSR_h2DN_h(h_C, h_C_dn);
+
+    verifyScalarMulMat(m, n, sc, h_A_dn->h_val, h_C_dn->h_val);
+
+    destroyCSR_d(d_A);
+    destroyCSR_d(d_C);
+    destroyCSR_h(h_A);
+    destroyCSR_h(h_C);
+    destroyDN_h(h_A_dn);
+    destroyDN_h(h_C_dn);
 }
 
 void testMatMulMat(int m, int n, int k) {
@@ -582,6 +705,67 @@ void testMatMulMat(int m, int n, int k) {
     destroyCSR_h(h_A);
     destroyCSR_h(h_B);
     destroyCSR_h(h_C);
+    destroyDN_h(h_A_dn);
+    destroyDN_h(h_C_dn);
+}
+
+void testCopyVec(int n) {
+    printf("- TEST copyVec\n");
+    double* h_A_val = (double*) malloc( sizeof(double)*n );
+    generateRandomVector(n, h_A_val);
+
+    // init vec with value
+    VEC_h *h_A = (VEC_h *) malloc(sizeof(VEC_h));
+    initVEC_h(h_A, n, h_A_val);
+
+    // move to gpu vec_d
+    VEC_d *d_A = (VEC_d *) malloc(sizeof(VEC_d));
+    VEC_h2d(h_A, d_A);
+
+    VEC_h *h_A_copy = (VEC_h *) malloc(sizeof(VEC_h));
+    VEC_d *d_A_copy = (VEC_d *) malloc(sizeof(VEC_d));
+
+    copyVEC_h(h_A, h_A_copy);
+    copyVEC_d(d_A, d_A_copy);
+    
+    printf("TEST PASSED\n");
+
+    destroyVEC_d(d_A);
+    destroyVEC_d(d_A_copy);
+    destroyVEC_h(h_A);
+    destroyVEC_h(h_A_copy);
+}
+
+void testCopyMat(int m, int n) {
+    printf("- TEST copyMat\n");
+    double* h_A_val = (double *) malloc(sizeof(double)*n*m);
+    generateRandomSparseMatrix(m, n, h_A_val, 0.2);
+
+    DN_h *h_A_dn = (DN_h *) malloc(sizeof(DN_h));
+    initDN_h(h_A_dn, m, n, h_A_val);
+
+    CSR_h *h_A = (CSR_h *) malloc(sizeof(CSR_h));
+    DN_h2CSR_h(h_A_dn, h_A);
+
+    CSR_d *d_A = (CSR_d *) malloc(sizeof(CSR_d));
+    CSR_h2d(h_A, d_A);
+
+    DN_h *h_A_dn_copy = (DN_h *) malloc(sizeof(DN_h));
+    CSR_h *h_A_copy = (CSR_h *) malloc(sizeof(CSR_h));
+    CSR_d *d_A_copy = (CSR_d *) malloc(sizeof(CSR_d));
+
+    copyCSR_h(h_A, h_A_copy);
+    copyCSR_d(d_A, d_A_copy);
+    copyDN_h(h_A_dn, h_A_dn_copy);
+
+    printf("TEST PASSED\n");
+    
+    destroyCSR_d(d_A);
+    destroyCSR_d(d_A_copy);
+    destroyCSR_h(h_A);
+    destroyCSR_h(h_A_copy);
+    destroyDN_h(h_A_dn);
+    destroyDN_h(h_A_dn_copy);
 }
 
 int main(int argc, char**argv) {
@@ -589,12 +773,17 @@ int main(int argc, char**argv) {
     checkCusparseErrors(cusparseCreate(&cusparseHandle));
 
     testVecAdd(1000000);
+    testVecAddInPlace(1000000);
     testInnerProduct(1000000);
     testScalarMulVec(1000000, 3.14159);
     testMatMulVec(1000, 500);
     testVecMulMat(1000, 500);
     testMatAdd(1000, 500);
-    testMatMulMat(1000, 500, 600);
+    testMatMulMat(1000, 500, 100);
+    testScalarMulMat(3.14159, 1000, 500);
+    testCopyVec(1000000);
+    testCopyMat(1000, 500);
+
 
     cublasDestroy(cublasHandle);
     cusparseDestroy(cusparseHandle);

@@ -25,7 +25,6 @@ cusparseHandle_t cusparseHandle;
 cublasHandle_t cublasHandle;
 
 /* ------------------------------- type define--------------------------------*/
-
 /* CSR matrix */
 typedef struct {
     int m; // number of rows
@@ -80,6 +79,34 @@ void initCSR_d(CSR_d *mat, int m, int n, int nnz, double *d_val, int *d_rowPtr, 
 
 }
 
+void copyCSR_h(CSR_h *mat_src, CSR_h *mat_dest) {
+    double *h_val = (double*) malloc(sizeof(double)*mat_src->nnz);
+    int *h_rowPtr = (int *) malloc(sizeof(int)*(mat_src->m+1));
+    int *h_colInd = (int *) malloc(sizeof(int)*mat_src->nnz);
+
+    memcpy(h_val, mat_src->h_val, sizeof(double)*mat_src->nnz);
+    memcpy(h_rowPtr, mat_src->h_rowPtr, sizeof(int)*(mat_src->m+1));
+    memcpy(h_colInd, mat_src->h_colInd, sizeof(int)*mat_src->nnz);
+
+    initCSR_h(mat_dest, mat_src->m, mat_src->n, mat_src->nnz, h_val, h_rowPtr, h_colInd);
+}
+
+void copyCSR_d(CSR_d *mat_src, CSR_d *mat_dest) {
+    double *d_val;
+    int *d_rowPtr;
+    int *d_colInd;
+
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*mat_src->nnz));
+    checkCudaErrors(cudaMalloc((void**)&d_rowPtr, sizeof(int)*(mat_src->m+1)));
+    checkCudaErrors(cudaMalloc((void**)&d_colInd, sizeof(int)*mat_src->nnz));
+
+    checkCudaErrors(cudaMemcpy(d_val, mat_src->d_val, sizeof(double)*mat_src->nnz, cudaMemcpyDeviceToDevice));
+    checkCudaErrors(cudaMemcpy(d_rowPtr, mat_src->d_rowPtr, sizeof(int)*(mat_src->m+1), cudaMemcpyDeviceToDevice));
+    checkCudaErrors(cudaMemcpy(d_colInd, mat_src->d_colInd, sizeof(int)*mat_src->nnz, cudaMemcpyDeviceToDevice));    
+
+    initCSR_d(mat_dest, mat_src->m, mat_src->n, mat_src->nnz, d_val, d_rowPtr, d_colInd);
+}
+
 /* Dense vector*/
 typedef struct {
     int n; // length of vector
@@ -103,6 +130,20 @@ void initVEC_d(VEC_d *v, int n, double *d_val) {
     v->d_val = d_val;
     checkCusparseErrors(cusparseCreateDnVec(&v->descr, n, d_val, CUDA_R_64F));
 }
+
+void copyVEC_h(VEC_h *vec_src, VEC_h *vec_dest) {
+    double *h_val = (double*) malloc(sizeof(double)*vec_src->n);
+    memcpy(h_val, vec_src->h_val, sizeof(double)*vec_src->n);
+    initVEC_h(vec_dest, vec_src->n, h_val);
+}
+
+void copyVEC_d(VEC_d *vec_src, VEC_d *vec_dest) {
+    double *d_val;
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*vec_src->n));
+    checkCudaErrors(cudaMemcpy(d_val, vec_src->d_val, sizeof(double)*vec_src->n, cudaMemcpyDeviceToDevice));
+    initVEC_d(vec_dest, vec_src->n, d_val);
+}
+
 
 /* Dense matrix*/
 typedef struct {
@@ -129,6 +170,19 @@ void initDN_d(DN_d *mat, int m, int n, double *d_val) {
     mat->n = n;
     mat->d_val = d_val;
     checkCusparseErrors(cusparseCreateDnMat(&mat->descr, m, n, m, mat->d_val, CUDA_R_64F, CUSPARSE_ORDER_ROW));
+}
+
+void copyDN_h(DN_h *mat_src, DN_h *mat_dest) {
+    double *h_val = (double*) malloc(sizeof(double)*(mat_src->n * mat_src->m));
+    memcpy(h_val, mat_src->h_val, sizeof(double)*(mat_src->n * mat_src->m));
+    initDN_h(mat_dest, mat_src->m, mat_src->n, h_val);
+}
+
+void copyDN_d(DN_d *mat_src, DN_d *mat_dest) {
+    double *d_val;
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*(mat_src->n * mat_src->m)));
+    checkCudaErrors(cudaMemcpy(d_val, mat_src->d_val, sizeof(double)*(mat_src->n * mat_src->m), cudaMemcpyDeviceToDevice));
+    initDN_d(mat_dest, mat_src->m, mat_src->n, d_val);
 }
 
 /* ------------------------------- destructor -------------------------------*/
@@ -303,6 +357,14 @@ void vecAdd(VEC_d *d_A, VEC_d *d_B, VEC_d *d_C) {
     checkCusparseErrors(cusparseCreateDnVec(&d_C->descr, d_C->n, d_C->d_val, CUDA_R_64F));
 }
 
+// A = A + B
+void vecAddInPlace(VEC_d *d_A, VEC_d *d_B) {
+    double alpha = 1;
+    checkCublasErrors(cublasDaxpy(cublasHandle, d_A->n, &alpha, d_B->d_val, 1, d_A->d_val, 1));
+    checkCusparseErrors(cusparseCreateDnVec(&d_A->descr, d_A->n, d_A->d_val, CUDA_R_64F));
+}
+
+
 // return inner project of two vectors
 // c = A * B
 double innerProduct(VEC_d *d_A, VEC_d *d_B) {
@@ -329,7 +391,6 @@ void scaleMulVecInPlace(double sc, VEC_d *d_A) {
 
 
 /* ------------------------------- Cusparse functions -------------------------------*/
-
 // vev C = mat A * vec B
 void matMulVec(CSR_d *d_A, VEC_d *d_B, VEC_d *d_C) {
     double alpha = 1;
@@ -535,8 +596,8 @@ void matMulMat(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
     //prepare buffer
     checkCusparseErrors(cusparseDcsrgemm2_bufferSizeExt(cusparseHandle,
                                                     d_A->m,
-                                                    d_A->n,
                                                     d_B->n,
+                                                    d_A->n,
                                                     &alpha,
                                                     mat_descr,
                                                     d_A->nnz,
@@ -560,8 +621,8 @@ void matMulMat(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
 
     checkCusparseErrors(cusparseXcsrgemm2Nnz(cusparseHandle,
                                          d_A->m,
-                                         d_A->n,
                                          d_B->n,
+                                         d_A->n,
                                          mat_descr,
                                          d_A->nnz,
                                          d_A->d_rowPtr,
@@ -580,6 +641,7 @@ void matMulMat(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
                                          info,
                                          buffer
                                          ));
+
     if (NULL != nnzTotalDevHostPtr){
         nnzC = *nnzTotalDevHostPtr;
     }else{
@@ -594,8 +656,8 @@ void matMulMat(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
     // Remark: set csrValC to null if only sparsity pattern is required.
     checkCusparseErrors(cusparseDcsrgemm2(cusparseHandle,
                                         d_A->m,
-                                        d_A->n,
                                         d_B->n,
+                                        d_A->n,
                                         &alpha,
                                         mat_descr,
                                         d_A->nnz,
@@ -622,6 +684,118 @@ void matMulMat(CSR_d *d_A, CSR_d *d_B, CSR_d *d_C) {
                     ));
 
     initCSR_d(d_C, d_A->m, d_B->n, nnzC, d_C->d_val, d_C->d_rowPtr, d_C->d_colInd);
+
+    cusparseDestroyCsrgemm2Info(info);
+    cusparseDestroyMatDescr(mat_descr);
+                                    
+    cudaFree(buffer);
+}
+
+void scalarMulMat(double sc, CSR_d *d_A, CSR_d *d_C) {
+    int baseC, nnzC;
+    void *buffer = NULL;
+    size_t bufferSizeInBytes;
+
+    int *nnzTotalDevHostPtr = &nnzC;
+
+    cusparseSetPointerMode(cusparseHandle, CUSPARSE_POINTER_MODE_HOST);
+
+    cusparseMatDescr_t mat_descr;
+    cusparseCreateMatDescr(&mat_descr);
+
+    csrgemm2Info_t info = NULL;
+    cusparseCreateCsrgemm2Info(&info);
+
+    //prepare buffer
+    checkCusparseErrors(cusparseDcsrgemm2_bufferSizeExt(cusparseHandle,
+                                                    d_A->m,
+                                                    d_A->n,
+                                                    0,
+                                                    NULL,
+                                                    mat_descr,
+                                                    d_A->nnz,
+                                                    d_A->d_rowPtr,
+                                                    d_A->d_colInd,
+                                                    mat_descr,
+                                                    d_A->nnz,
+                                                    d_A->d_rowPtr,
+                                                    d_A->d_colInd,
+                                                    &sc,
+                                                    mat_descr,
+                                                    d_A->nnz,
+                                                    d_A->d_rowPtr,
+                                                    d_A->d_colInd,
+                                                    info,
+                                                    &bufferSizeInBytes
+                                                    ));
+    checkCudaErrors(cudaMalloc((void**)&buffer, sizeof(char)*bufferSizeInBytes));
+
+    cudaMalloc((void**)&d_C->d_rowPtr, sizeof(int)*(d_A->m+1));
+
+    checkCusparseErrors(cusparseXcsrgemm2Nnz(cusparseHandle,
+                                         d_A->m,
+                                         d_A->n,
+                                         0,
+                                         mat_descr,
+                                         d_A->nnz,
+                                         d_A->d_rowPtr,
+                                         d_A->d_colInd,
+                                         mat_descr,
+                                         d_A->nnz,
+                                         d_A->d_rowPtr,
+                                         d_A->d_colInd,
+                                         mat_descr,
+                                         d_A->nnz,
+                                         d_A->d_rowPtr,
+                                         d_A->d_colInd,
+                                         mat_descr,
+                                         d_C->d_rowPtr,
+                                         nnzTotalDevHostPtr,
+                                         info,
+                                         buffer
+                                         ));
+    if (NULL != nnzTotalDevHostPtr){
+        nnzC = *nnzTotalDevHostPtr;
+    }else{
+        cudaMemcpy(&nnzC, d_C->d_rowPtr+d_A->m, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&baseC, d_C->d_rowPtr, sizeof(int), cudaMemcpyDeviceToHost);
+        nnzC -= baseC;
+    }
+
+    cudaMalloc((void**)&d_C->d_colInd, sizeof(int)*nnzC);
+    cudaMalloc((void**)&d_C->d_val, sizeof(double)*nnzC);
+
+    // Remark: set csrValC to null if only sparsity pattern is required.
+    checkCusparseErrors(cusparseDcsrgemm2(cusparseHandle,
+                                        d_A->m,
+                                        d_A->n,
+                                        0,
+                                        NULL,
+                                        mat_descr,
+                                        d_A->nnz,
+                                        d_A->d_val,
+                                        d_A->d_rowPtr,
+                                        d_A->d_colInd,
+                                        mat_descr,
+                                        d_A->nnz,
+                                        d_A->d_val,
+                                        d_A->d_rowPtr,
+                                        d_A->d_colInd,
+                                        &sc,
+                                        mat_descr,
+                                        d_A->nnz,
+                                        d_A->d_val,
+                                        d_A->d_rowPtr,
+                                        d_A->d_colInd,
+                                        mat_descr,
+                                        d_C->d_val,
+                                        d_C->d_rowPtr,
+                                        d_C->d_colInd,
+                                        info,
+                                        buffer
+                    ));
+
+    initCSR_d(d_C, d_A->m, d_A->n, nnzC, d_C->d_val, d_C->d_rowPtr, d_C->d_colInd);
 
     cusparseDestroyCsrgemm2Info(info);
     cusparseDestroyMatDescr(mat_descr);
