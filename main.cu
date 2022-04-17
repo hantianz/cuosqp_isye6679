@@ -193,7 +193,7 @@ void calculateR(int n, double *R, double *l, double *u, double rho){
 }
 
 //get diagonal element of K into M
-void getDiagonal(CSR_d *K, CSR_d *M)
+void getDiagonal(CSR_h *K, CSR_h *M)
 {
     M->n = K->n;
     M->m = K->m;
@@ -201,11 +201,11 @@ void getDiagonal(CSR_d *K, CSR_d *M)
     double d_val[K->n];
     int d_rowPtr[K->n+1], d_colInd[K->n];
     for (int i = 0; i < K->n; ++i) {
-        int row_begin = K->d_rowPtr[i];
-        int row_end = K->d_rowPtr[i+1];
+        int row_begin = K->h_rowPtr[i];
+        int row_end = K->h_rowPtr[i+1];
         for (int j = row_begin; j < row_end; ++j) {
-            if (K->d_colInd[j] == i) {
-                d_val[nnz] = K->d_val[j];
+            if (K->h_colInd[j] == i) {
+                d_val[nnz] = K->h_val[j];
                 d_rowPtr[nnz] = j;
                 d_colInd[nnz] = j;
                 nnz++;
@@ -213,22 +213,9 @@ void getDiagonal(CSR_d *K, CSR_d *M)
         }
     }
     d_rowPtr[nnz+1] = nnz;
-    M->d_rowPtr = d_rowPtr;
-    M->d_colInd = d_colInd;
-    M->d_val = d_val;
-    if(nnz > 0) {
-        checkCusparseErrors(cusparseCreateCsr(&M->descr,
-                                              K->n,
-                                              K->m,
-                                              nnz,
-                                              d_rowPtr,
-                                              d_colInd,
-                                              d_val,
-                                              CUSPARSE_INDEX_32I,
-                                              CUSPARSE_INDEX_32I,
-                                              CUSPARSE_INDEX_BASE_ZERO,
-                                              CUDA_R_64F));
-    }
+    M->h_rowPtr = d_rowPtr;
+    M->h_colInd = d_colInd;
+    M->h_val = d_val;
 }
 
 // calculate objective value obj = 1/2 * x^T * P * x + q^T * X
@@ -287,8 +274,10 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 
     CSR_d *M = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *MINV = (CSR_d *) malloc(sizeof(CSR_d));
-    getDiagonal(K,M);
     CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_h *K_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_d2h(K,K_h);
+    getDiagonal(K_h,M_h);
     CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_d));
     CSR_d2h(M,M_h);
     inverseDiag(M_h,MINV_h);
