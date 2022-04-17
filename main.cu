@@ -20,7 +20,66 @@
 # endif /* ifndef c_min */
 
 
+__global__ static void GetDiagFromSparseMat(const int *A_row,
+                                            const int *A_col,
+                                            const double *A_val,
+                                            const int A_len,
+                                            double *B_val,
+                                            int *B_rowPtr,
+                                            int *B_colIdx
+                                            ){
 
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    if (x < A_len){
+        const int num_non0_row = A_row[x + 1] - A_row[x];
+        //printf("%d, %d\n",x, num_non0_row);
+        B_val[x] = 0.0;
+
+        for (int i = 0; i < num_non0_row; i++){
+            if (A_col[i + A_row[x]] == x){
+                //printf("%d, %d, %f\n", x, A_col[i + A_row[x]], A_val[i + A_row[x]]);
+                B_val[x] = A_val[i + A_row[x]];
+                B_rowPtr[x] = x;
+                B_colIdx[x] = x;
+                break;
+            }
+        }
+        B_rowPtr[A_len] = A_len;
+    }
+}
+
+void getDiagonal(CSR_d *SRC, CSR_d *DST) {
+    int n = SRC->m;
+    double *d_val;
+    int *d_rowPtr, *d_colInd;
+    checkCudaErrors(cudaMalloc((void**)&d_val, sizeof(double)*n));
+    checkCudaErrors(cudaMalloc((void**)&d_rowPtr, sizeof(int)*(n+1)));
+    checkCudaErrors(cudaMalloc((void**)&d_colInd, sizeof(int)*n));
+
+    int number_of_blocks = (n / THREADS_PER_BLOCK) + 1;
+
+    GetDiagFromSparseMat<<<number_of_blocks, THREADS_PER_BLOCK>>>(SRC->d_rowPtr, SRC->d_colInd, SRC->d_val, SRC->m, d_val, d_rowPtr, d_colInd);
+    initCSR_d(DST, SRC->m, SRC->n, SRC->m, d_val, d_rowPtr, d_colInd);
+
+}
+
+__global__ void inverseDiagKernel(int n,
+                                  double *A_val,
+                                 double *B_val
+){
+
+    int i = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (i < n && A_val[i]!=0.0) {
+        B_val[i] = 1 / A_val[i];
+    }
+}
+
+void inverseDiag(CSR_d *SRC, CSR_d *DST) {
+    copyCSR_d(SRC, DST);
+    int number_of_blocks = (SRC->nnz / THREADS_PER_BLOCK) + 1;
+    inverseDiagKernel<<<number_of_blocks, THREADS_PER_BLOCK>>>(SRC->nnz, SRC->d_val, DST->d_val);
+}
 
 __global__ void vec_bound_kernel(int n,
                               double *A_val,
@@ -70,6 +129,7 @@ void transpose(int n, int m, double *A, double *B){
         for (int j = 0; j < m; ++j)
             B[j*n+i] = A[i*m+j];
 }
+
 
 
 void inverseDiag(CSR_h *A, CSR_h *B){
@@ -299,18 +359,22 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_h));
     CSR_h *K_h = (CSR_h *) malloc(sizeof(CSR_h));
 
-    CSR_d2h(K, K_h);
-    getDiagonal(K_h, M_h);
-
+    //CSR_d2h(K, K_h);
+    //getDiagonal(K_h, M_h);
+    getDiagonal(K, M);
+//    printCSRd(K);
+//    printCSRd(M);
     // printf("%d, %d, %d, %d, %d", MINV->m, MINV->n, r->n, MINV->nnz, M->nnz);
     // printDVec_d(M->nnz, M->d_val);
     // printDVec_d(MINV->nnz, MINV->d_val);
 
-    CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_h));
-    CSR_h2d(M_h, M);
-    inverseDiag(M_h,MINV_h);
-    CSR_h2d(MINV_h, MINV);
-
+    //CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_h));
+    //CSR_h2d(M_h, M);
+    //inverseDiag(M_h,MINV_h);
+    //CSR_h2d(MINV_h, MINV);
+    inverseDiag(M, MINV);
+//    printCSRd(MINV);
+//    exit(-1);
     VEC_d *b = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *temp5 = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *temp6 = (VEC_d *) malloc(sizeof(VEC_d));
@@ -432,10 +496,10 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     destroyCSR_d(M);
     destroyCSR_d(MINV);
 
-    destroyCSR_h(M_h);
-    destroyCSR_h(MINV_h);
+    //destroyCSR_h(M_h);
+    //destroyCSR_h(MINV_h);
 
-    destroyCSR_h(K_h);
+    //destroyCSR_h(K_h);
     destroyCSR_h(I_h);
 
 }
