@@ -94,11 +94,11 @@ void get_input(int n, int m, double **P, double *Q, double *l, double *u, double
     fclose(myfile);
 }
 
-void inverseDiag(CSR_d *A, CSR_d *B){
-    copyCSR_d(A,B);
+void inverseDiag(CSR_h *A, CSR_h *B){
+    copyCSR_h(A,B);
     for (int i =0; i < A->nnz; ++i)
     {
-        B->d_val[i] = 1 / A->d_val[i];
+        B->h_val[i] = 1 / A->h_val[i];
     }
 }
 
@@ -288,7 +288,11 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     CSR_d *M = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *MINV = (CSR_d *) malloc(sizeof(CSR_d));
     getDiagonal(K,M);
-    inverseDiag(M,MINV);
+    CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_d));
+    CSR_d2h(M,M_h);
+    inverseDiag(M_h,MINV_h);
+    CSR_h2d(MINV_h, MINV);
 
     VEC_d *b = (VEC_d *) malloc(sizeof(VEC_d));
     VEC_d *temp5 = (VEC_d *) malloc(sizeof(VEC_d));
@@ -438,9 +442,10 @@ int main() {
     CSR_d *R = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(R_csrh, R);
 
+    CSR_h *RINV_h = (CSR_h *) malloc(sizeof(CSR_d));
+    inverseDiag(R_csrh, RINV_h);
     CSR_d *RINV = (CSR_d *) malloc(sizeof(CSR_d));
 
-    inverseDiag(R, RINV);
 
 
     double x_h[n], y_h[m], z_h[m];
