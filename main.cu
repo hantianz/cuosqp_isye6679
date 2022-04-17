@@ -166,7 +166,7 @@ double normInf(VEC_d *A){
     double h_res;
     checkCublasErrors(cublasIdamax(cublasHandle, A->n, A->d_val, 1, &idx));
     checkCudaErrors(cudaMemcpy(&h_res, A->d_val + (idx-1), sizeof(double), cudaMemcpyDeviceToHost));
-    h_res = abs(h_res);
+    h_res = fabs(h_res);
     return h_res;
 }
 
@@ -302,6 +302,7 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     matAdd(temp2, temp3, temp4);
     matAdd(temp4, P, K);
 
+
     CSR_d *M = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_d *MINV = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h *M_h = (CSR_h *) malloc(sizeof(CSR_h));
@@ -362,12 +363,17 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     VEC_d *p = (VEC_d *) malloc(sizeof(VEC_d));
     scalarMulVec(-1, y_kkt, p);
 
-    // printVecd(y_kkt);
-    // exit(0);
+    // printf("r:");
+    // printVecd(r);
 
     int k = 0;
     double normR = normInf(r);
     double normB = normInf(b);
+
+    // printf("normR :%f\n", normR);
+    // printf("normB :%f\n", normB);
+    
+
     while (normR > epsilon * normB)
     {
         //calculate a^k
@@ -379,19 +385,17 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
         alpha = temp12 / temp13;
         //calculate x^k+1
         scalarMulVec(alpha, p, temp8);
-        if (k==0)
+   
+        if (k==0) {
             vecAdd(x, temp8, xNext); // x = x + alpha * p;
-        else
+        }
+        else{
             vecAddInPlace(xNext, temp8);
+        }
         //calculate r^k+1
-        matMulVec(K, p,temp8); // temp8 = K * p;
+        matMulVec(K, p, temp8); // temp8 = K * p;
         scalarMulVec(alpha, temp8, temp9); // temp9 = alpha * K * p;
         vecAddInPlace(r, temp9);
-
-        // printVecd(p);
-        // printVecd(temp8);
-        // printVecd(temp9);
-        // exit(0);
 
         //calculate y^k+1
         matMulVec(MINV, r, y_kkt); // y = M^(-1) * rNew;
@@ -405,12 +409,10 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
         vecAdd(temp8, temp9, p);
         k+=1;
 
-        // printf("%f, %f", normR, normB);
-        // printVecd(r);
-        // exit(0);
-
         normR = normInf(r);
 
+        // printf("normR :%f\n", normR);
+        // printf("normB :%f\n", normB);
 
     }
     matMulVec(A, xNext, zNext);
@@ -472,7 +474,7 @@ int main() {
     double P_h[n*n],Q_h_val[n], A_h[m*n], AT_h[n*m], l_h_val[m],u_h_val[m];
     // case 1
     P_h[0] = 0.01;
-    P_h[0] = 0.0;
+    P_h[1] = 0.0;
     P_h[2] = 0.0;
     P_h[3] = 0.2889654;
     Q_h_val[0] = -1.07296862;
@@ -516,8 +518,8 @@ int main() {
     CSR_h2d(AT_csrh, AT);
 
     DN_h *P_dh_h = (DN_h *) malloc(sizeof(DN_h));
-    //twoD2oneD(n, n, P_h, P_2d);
     initDN_h(P_dh_h, n, n, P_h);
+
     CSR_h *P_csrh = (CSR_h *) malloc(sizeof(CSR_h));
     DN_h2CSR_h(P_dh_h, P_csrh);
     CSR_d *P = (CSR_d *) malloc(sizeof(CSR_d));
@@ -534,7 +536,6 @@ int main() {
     inverseDiag(R_csrh, RINV_h);
     CSR_d *RINV = (CSR_d *) malloc(sizeof(CSR_d));
     CSR_h2d(RINV_h, RINV);
-
 
     double x_h_val[n]; 
     double y_h_val[m]; 
@@ -615,8 +616,8 @@ int main() {
         vecAdd(temp3, temp4, temp6);  // temp6 = alpha * zNext + (1 - alpha) * z;
         vecAdd(temp5, temp6, temp7);    // temp7 = alpha * zNext + (1 - alpha) * z + R^(-1) * y
 
-        printVecd(xNext);
-        printVecd(zNext);
+        // printVecd(xNext);
+        // printVecd(zNext);
         // printVecd(temp1);
         // printVecd(temp2);
         // printVecd(temp3);
@@ -624,7 +625,7 @@ int main() {
         // printVecd(temp5);
         // printVecd(temp6);
         // printVecd(temp7);
-        exit(0);
+        // exit(0);
 
         vecMinMaxProj(l->n, temp7, l, u, zNextReal); // zNextReal is the projection of temp7
 

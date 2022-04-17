@@ -194,9 +194,11 @@ double norm2(int n, double A[n]){
 double normInf(int n, double A[n]){
     double norm = 0.0;
     double maxValue = -1;
-    for (int i = 0; i < n; ++i)
-        if (A[i] > maxValue)
-            maxValue = A[i];
+    for (int i = 0; i < n; ++i) {
+        if (fabs(A[i]) > maxValue) {
+            maxValue = fabs(A[i]);
+        }
+    }
     norm = maxValue;
     return norm;
 }
@@ -242,6 +244,9 @@ int termination(int n, int m, double x[n], double y[m], double z[m], double P[n]
     matMulVec(n, m, AT, y, temp4); // temp4 = A^T * y;
     vecAdd(n, temp3, temp4, temp5); // temp5 = temp3 + temp4;
     vecAdd(n, temp5, Q, residualDual); // residualDual = temp5 + Q;
+
+    // printf("%f, %f\n", normInf(m, residualPrimal), epsilonPrimal);
+
     if ((normInf(m, residualPrimal) <= epsilonPrimal) && (normInf(n, residualDual) <= epsilonDual))
         return 1;
     else
@@ -263,10 +268,18 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
     matAdd(n, n, temp2, temp3, temp4);
     matAdd(n, n, temp4, P, K);  // K = P + sigma * I + A^T * R * A
 
+    
+    printf("temp4:");
+    printMatrix(n, n, temp4);  
+    printf("P:");
+    printMatrix(n, n, P);
+
+
     //calculate preconditioner
     double M[n][n], MINV[n][n];
     calculatePrecond(n, K, M);
     inverseDiag(m, M, MINV);
+
     //calculate b = sigma * x - q + A^T(Rz-y)
     double b[n];
     double temp5[m], temp6[m], temp7[m], temp8[n], temp9[n], temp10[n], temp11[n];
@@ -295,6 +308,15 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
     int k = 0;
     double normR = normInf(n,r);
     double normB = normInf(n,b);
+
+
+
+    printf("r");
+    printDVec(n, r);
+    printf("normR :%f\n", normR);
+    printf("normB :%f\n", normB);
+
+
     while (normR > epsilon * normB)
     {
         //calculate a^k
@@ -306,6 +328,9 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         alpha = temp12 / temp13;
         //calculate x^k+1
         scalarMulVec(n, alpha, p, temp8);
+        printf("p:");
+        printDVec(n, p);
+
         if (k==0)
             vecAdd(n, x, temp8, xNext); // x = x + alpha * p;
         else
@@ -315,6 +340,10 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         diagMatMulVec(n, n, K, p,temp8); // temp8 = K * p;
         scalarMulVec(n,alpha, temp8, temp9); // temp9 = alpha * K * p;
         vecAdd(n, r, temp9, r);
+
+        printf("temp8:");
+        printDVec(n, temp8);   
+
         //calculate y^k+1
         double yNew[n];
         diagMatMulVec(n, n, MINV, r, y_kkt); // y = M^(-1) * rNew;
@@ -328,10 +357,35 @@ void solveKKT(int n, int m, double x[n], double y[m], double z[m], double P[n][n
         vecAdd(n, temp8, temp9, p);
         k+=1;
         normR = normInf(n,r);
+
+        // printf("normR :%f\n", normR);
+        // printf("normB :%f\n", normB);
     }
     matMulVec(m,n, A, xNext, zNext);
 }
 
+void printDVec(int n, double *A) {
+    for (int i = 0; i < n; i++) {
+        printf("%f, ", A[i]);
+    }
+    printf("\n");
+}
+
+void printIVec(int n, int *A) {
+    for (int i = 0; i < n; i++) {
+        printf("%d, ", A[i]);
+    }
+    printf("\n");
+}
+
+void printMatrix(int m, int n, double *A) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            printf("%f,", A[i*n+j]);
+        }
+        printf("\n");
+    }
+}
 
 
 int main() {
@@ -378,6 +432,7 @@ int main() {
     double epsilonDual = 0.0001;
     //eps = calc_eps();
     int k = 0;
+
     while (!termination(n, m, x, y, z, P, Q, A, AT, epsilonPrimal, epsilonDual) && k <= 100)
     {
         double xNext[n], zNext[n];
@@ -387,6 +442,9 @@ int main() {
         inverseDiag(m, R, RINV);
 
         solveKKT(n, m, x, y, z, P, Q, A, AT, l,u, R, xNext, zNext, rho, sigma, epsilon);
+
+        printDVec(n, xNext);
+
         // update x
         double temp1[n], temp2[n];
         scalarMulVec(n, alpha, xNext, temp1); // temp1 = alpha * xNext;
@@ -412,6 +470,7 @@ int main() {
         memcpy(z, zNextReal, sizeof(zNextReal)); // z = zNextReal
         printf("Round:%d, x1:%.6f, x2:%.6f, obj:%.6f\n", k, x[0], x[1], objValue(n,P,Q,x));
         k += 1;
+        exit(0);
 
     }
     return 0;
