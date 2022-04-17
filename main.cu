@@ -23,16 +23,16 @@
 
 
 __global__ void vec_bound_kernel(int n,
-                              VEC_d *A,
-                              VEC_d *l,
-                              VEC_d *u,
-                              VEC_d *B
+                              double *A_val,
+                              double *l_val,
+                              double *u_val,
+                              double *B_val
 ){
 
     int i = threadIdx.x + blockDim.x * blockIdx.x;
 
     if (i < n) {
-        B->d_val[i] = c_min(u->d_val[i], c_max(l->d_val[i],A->d_val[i]));
+        B_val[i] = c_min(u_val[i], c_max(l_val[i], A_val[i]));
     }
 }
 
@@ -43,9 +43,25 @@ void vecMinMaxProj(int n,
                    VEC_d *u,
                    VEC_d *B) {
 
+    double *B_val;
+    checkCudaErrors(cudaMalloc((void**)&B_val, sizeof(double)*n));
+
+    // printVecd(A);
+    // printVecd(l);
+    // printVecd(u);
+
+    // printf("%d\n", n);
     int number_of_blocks = (n / THREADS_PER_BLOCK) + 1;
 
-    vec_bound_kernel<<<number_of_blocks, THREADS_PER_BLOCK>>>(n, A, l, u, B);
+    vec_bound_kernel<<<number_of_blocks, THREADS_PER_BLOCK>>>(n, A->d_val, l->d_val, u->d_val, B_val);
+
+    initVEC_d(B, n, B_val);
+
+    // printVecd(A);
+    // printVecd(l);
+    // printVecd(u);
+    // printVecd(B);
+    // exit(0);
 }
 
 //// calculate transpose of a matrix A and store it in matrix B
@@ -109,8 +125,9 @@ void initializeDiagMat(int n, double val, CSR_h *A){
     A->n = n;
     A->m = n;
     A->nnz = n;
-    double d_val[n];
-    int d_rowPtr[n+1], d_colInd[n];
+    double *d_val = (double *) malloc(sizeof(double) *n);
+    int *d_rowPtr = (int *) malloc(sizeof(int) *(n+1));
+    int *d_colInd = (int *) malloc(sizeof(int) *n);
     for (int i = 0; i < n; ++i) {
         d_val[i] = val;
         d_rowPtr[i] = i;
@@ -165,7 +182,7 @@ double normInf(VEC_d *A){
 
 // if l==u, penalty = 1000*rho, otherwise penalty = rho
 void calculateR(int n, double *R, double *l, double *u, double rho){
-    memset(R, 0, sizeof(R));
+    memset(R, 0, sizeof(double)*n*n);
     for (int i = 0; i < n; ++i)
     {
         if (l[i] == u[i])
@@ -185,21 +202,33 @@ void getDiagonal(CSR_h *K, CSR_h *M)
     M->n = K->n;
     M->m = K->m;
     int nnz = 0;
-    double d_val[K->n];
-    int d_rowPtr[K->n+1], d_colInd[K->n];
+
+    double *d_val = (double *) malloc(sizeof(double) *K->n);
+    int *d_rowPtr = (int *) malloc(sizeof(int) * (K->n+1));
+    int *d_colInd = (int *) malloc(sizeof(int) * (K->n));
+
     for (int i = 0; i < K->n; ++i) {
         int row_begin = K->h_rowPtr[i];
         int row_end = K->h_rowPtr[i+1];
+
+        int count = 0;
         for (int j = row_begin; j < row_end; ++j) {
             if (K->h_colInd[j] == i) {
                 d_val[nnz] = K->h_val[j];
-                d_rowPtr[nnz] = j;
-                d_colInd[nnz] = j;
+                d_colInd[nnz] = i;
                 nnz++;
+                count++;
             }
         }
+        if(i > 0) {
+            d_rowPtr[i] = d_rowPtr[i-1]+count;
+        }
+        else {
+            d_rowPtr[i] = 0;
+        }
     }
-    d_rowPtr[nnz+1] = nnz;
+    d_rowPtr[K->n] = nnz;
+
     M->h_rowPtr = d_rowPtr;
     M->h_colInd = d_colInd;
     M->h_val = d_val;
@@ -210,7 +239,7 @@ void getDiagonal(CSR_h *K, CSR_h *M)
 double objValue(int n, CSR_d *P, VEC_d *q, VEC_d *x)
 {
     VEC_d *temp = (VEC_d *) malloc(sizeof(VEC_d));
-    vecMulMat(x,P,temp);
+    vecMulMat(x, P, temp);
     double obj = 0.5 * innerProduct(temp, x) + innerProduct(q, x);
     destroyVEC_d(temp);
     return obj;
@@ -281,14 +310,9 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     CSR_d2h(K, K_h);
     getDiagonal(K_h, M_h);
 
-
     // printf("%d, %d, %d, %d, %d", MINV->m, MINV->n, r->n, MINV->nnz, M->nnz);
     // printDVec_d(M->nnz, M->d_val);
     // printDVec_d(MINV->nnz, MINV->d_val);
-
-    printCSRh(K_h);
-    printCSRh(M_h);
-    exit(-1);
 
     CSR_h *MINV_h = (CSR_h *) malloc(sizeof(CSR_h));
     CSR_h2d(M_h, M);
@@ -315,7 +339,18 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     //initialize r0=Kx-b, y0, p0
     VEC_d *r = (VEC_d *) malloc(sizeof(VEC_d));
     matMulVec(K, x, temp8); // temp8 = Kx;
-    scalarMulVec(1, b, temp9); // temp9 = -b;
+    scalarMulVec(-1, b, temp9); // temp9 = -b;
+
+    // printCSRd(R);
+    // printVecd(z);
+    // printVecd(temp5);
+    // printVecd(temp6);
+    // printVecd(temp8);
+    // printVecd(temp9);
+    // printVecd(temp11);
+    // printVecd(b);
+    // exit(0);
+
     vecAdd(temp8, temp9, r);
 
     //intitialize y0 = M^(-1)*r;
@@ -326,6 +361,10 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
     // intitialize p0 = -y0;
     VEC_d *p = (VEC_d *) malloc(sizeof(VEC_d));
     scalarMulVec(-1, y_kkt, p);
+
+    // printVecd(y_kkt);
+    // exit(0);
+
     int k = 0;
     double normR = normInf(r);
     double normB = normInf(b);
@@ -348,6 +387,12 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
         matMulVec(K, p,temp8); // temp8 = K * p;
         scalarMulVec(alpha, temp8, temp9); // temp9 = alpha * K * p;
         vecAddInPlace(r, temp9);
+
+        // printVecd(p);
+        // printVecd(temp8);
+        // printVecd(temp9);
+        // exit(0);
+
         //calculate y^k+1
         matMulVec(MINV, r, y_kkt); // y = M^(-1) * rNew;
         //calculate beta^k+1
@@ -359,9 +404,20 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
         scalarMulVec(beta, p, temp9); // temp9 = beta * p;
         vecAdd(temp8, temp9, p);
         k+=1;
+
+        // printf("%f, %f", normR, normB);
+        // printVecd(r);
+        // exit(0);
+
         normR = normInf(r);
+
+
     }
     matMulVec(A, xNext, zNext);
+
+    // printVecd(xNext);
+    // exit(0);
+
     destroyVEC_d(temp5);
     destroyVEC_d(temp6);
     destroyVEC_d(temp7);
@@ -385,6 +441,7 @@ void solveKKT(int n, int m, VEC_d *x, VEC_d *y, VEC_d *z, CSR_d *P, VEC_d *Q, CS
 
     destroyCSR_h(M_h);
     destroyCSR_h(MINV_h);
+
     destroyCSR_h(K_h);
     destroyCSR_h(I_h);
 
@@ -476,7 +533,7 @@ int main() {
     CSR_h *RINV_h = (CSR_h *) malloc(sizeof(CSR_h));
     inverseDiag(R_csrh, RINV_h);
     CSR_d *RINV = (CSR_d *) malloc(sizeof(CSR_d));
-
+    CSR_h2d(RINV_h, RINV);
 
 
     double x_h_val[n]; 
@@ -532,6 +589,7 @@ int main() {
         //calculate the penalty matrix R and its inverse RINV
 
         solveKKT(n, m, x, y, z, P, Q, A, AT, l,u, R, xNext, zNext, rho, sigma, epsilon);
+
         // update x
         VEC_d *temp1 = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *temp2 = (VEC_d *) malloc(sizeof(VEC_d));
@@ -547,11 +605,28 @@ int main() {
         VEC_d *temp6 = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *temp7 = (VEC_d *) malloc(sizeof(VEC_d));
         VEC_d *zNextReal = (VEC_d *) malloc(sizeof(VEC_d));
+
         scalarMulVec(alpha, zNext, temp3); // temp3 = alpha * zNext;
         scalarMulVec(1 - alpha, z, temp4); // temp4 = (1 - alpha) * z;
+
         matMulVec(RINV,y, temp5 ); // temp5 = R^(-1) * y;
+
+        
         vecAdd(temp3, temp4, temp6);  // temp6 = alpha * zNext + (1 - alpha) * z;
         vecAdd(temp5, temp6, temp7);    // temp7 = alpha * zNext + (1 - alpha) * z + R^(-1) * y
+
+
+        printVecd(xNext);
+        printVecd(zNext);
+        // printVecd(temp1);
+        // printVecd(temp2);
+        // printVecd(temp3);
+        // printVecd(temp4);
+        // printVecd(temp5);
+        // printVecd(temp6);
+        // printVecd(temp7);
+        exit(0);
+
         vecMinMaxProj(l->n, temp7, l, u, zNextReal); // zNextReal is the projection of temp7
 
         // update y
@@ -559,11 +634,18 @@ int main() {
         vecAdd(temp6, temp3, temp4); // temp4 = alpha * zNext + (1 - alpha) * z - zNextReal;
         matMulVec(R, temp4, temp5); // temp5 = R * (alpha * zNext + (1 - alpha) * z - zNextReal);
         vecAddInPlace(y, temp5); // y = y + temp5;
-
+        
         // update z^k to z^(k+1)
-        z = zNextReal;
-        printf("Round:%d, x1:%.6f, x2:%.6f, obj:%.6f\n", k, x->d_val[0], x->d_val[1], objValue(n,P,Q,x));
+
+        
+        // printf("%d\n", zNextReal->n);
+        // printVecd(zNextReal);
+        copyVEC_d(zNextReal, z);
+
+        printf("Round:%d, obj:%.6f\n", k, objValue(n,P,Q,x));
+        printVecd(x);
         k += 1;
+   
         destroyVEC_d(temp1);
         destroyVEC_d(temp2);
         destroyVEC_d(temp3);
