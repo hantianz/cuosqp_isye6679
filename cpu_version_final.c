@@ -274,11 +274,16 @@ void scalarMulMat(double val, DN_h *A, DN_h *B)
 //// calculate transpose of a matrix A and store it in matrix B
 void transpose(DN_h *A, DN_h *B){
     B->h_val = (double *) malloc(sizeof(double) *(A->m * A->n));
+
     B->n = A->m;
     B->m = A->n;
-    for (int i = 0; i < A->m; ++i)
-        for (int j = 0; j < A->n; ++j)
-            B[j*A->m+i] = A[i*A->n+j];
+
+    for (int i = 0; i < A->m; ++i) {
+        for (int j = 0; j < A->n; ++j) {
+            B->h_val[j*A->m+i] = A->h_val[i*A->n+j];
+        }
+
+    }
 }
 
 
@@ -743,6 +748,8 @@ int main() {
     char filename_u[40] = "u.txt";
     strcat(testDST, filename_u);
     readVector(testDST,u);
+
+
     //readSparseMatrix("")
     // case 1
 //    P_h[0] = 0.01;
@@ -789,7 +796,10 @@ int main() {
 
     //CSR_h2d(AT_csrh, AT);
     //tic = clock();
-    transpose(A,AT);
+    transpose(A, AT);
+
+
+
     //toc = clock();
     //time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
     //printf("Transpose time %fs, \n", time_used);
@@ -803,6 +813,8 @@ int main() {
     //DN_h *R_dh_h = (DN_h *) malloc(sizeof(DN_h));
     //initDN_h(R_dh_h, m, m, R_h);
     DN_h *R = (DN_h *) malloc(sizeof(DN_h));
+
+
     calculateR(m, R, l, u, rho);
     DN_h *RINV = (DN_h *) malloc(sizeof(DN_h));
     //CSR_h *RINV_h = (CSR_h *) malloc(sizeof(CSR_h));
@@ -849,6 +861,7 @@ int main() {
     double epsilonDual = 0.1;
     //eps = calc_eps();
     int k = 0;
+
 
     while (!termination(x, y, z, P, Q, A, AT, epsilonPrimal, epsilonDual) && k <= 100)
     {
