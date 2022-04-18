@@ -595,13 +595,14 @@ void readVector(char * FILENAME, VEC_h *DST)
 }
 
 int main() {
+    clock_t tic = clock();
 
     checkCublasErrors(cublasCreate(&cublasHandle));
     checkCusparseErrors(cusparseCreate(&cusparseHandle));
     //
     int n,m;
     double sigma = 0.000001, alpha=1.6, rho =  0.5;//9.054556534215896;
-    char testcase[40]="data/instance-3000x8000/";
+    char testcase[40]="data/instance-3x103/";
     //get n and m
     // input
 //    //case 1
@@ -618,7 +619,7 @@ int main() {
     DN_h *A_dh_h = (DN_h *) malloc(sizeof(DN_h));
     VEC_h *l_h = (VEC_h *) malloc(sizeof(VEC_h));
     VEC_h *u_h = (VEC_h *) malloc(sizeof(VEC_h));
-    VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_d));
+    VEC_h *Q_h = (VEC_h *) malloc(sizeof(VEC_h));
     char testDST[40];
     strcpy(testDST, testcase);
     char filename[40] = "A.txt";
@@ -747,8 +748,8 @@ int main() {
     // initialize epsilon, now we assume epsilon is a constant
     // todo add a function to calculate epsilon in each iteration;
     double epsilon = 0.00001;
-    double epsilonPrimal = 0.0001;
-    double epsilonDual = 0.0001;
+    double epsilonPrimal = 0.001;
+    double epsilonDual = 0.1;
     //eps = calc_eps();
     int k = 0;
 
@@ -873,6 +874,8 @@ int main() {
 
     cublasDestroy(cublasHandle);
     cusparseDestroy(cusparseHandle);
- 
+    clock_t toc = clock();
+    double time_used = (double) (toc - tic) / CLOCKS_PER_SEC;
+    printf("Total time %fs, \n", time_used);
     return 0;
 }

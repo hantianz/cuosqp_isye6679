@@ -278,7 +278,7 @@ void transpose(DN_h *A, DN_h *B){
     B->m = A->n;
     for (int i = 0; i < A->m; ++i)
         for (int j = 0; j < A->n; ++j)
-            B[j*A->m+i] = A[i*A->n+j];
+            B->h_val[j*A->m+i] = A->h_val[i*A->n+j];
 }
 
 
@@ -691,8 +691,8 @@ void readVector(char * FILENAME, VEC_h *DST)
 int main() {
     clock_t tic = clock();
     int n,m;
-    double sigma = 0.000001, alpha=1.6, rho =  9;//9.054556534215896;
-    char testcase[40]="data/instance-3x4/";
+    double sigma = 0.000001, alpha=1.6, rho =  0.5;//9.054556534215896;
+    char testcase[40]="data/instance-3x103/";
     //get n and m
     // input
 //    //case 1
@@ -845,7 +845,7 @@ int main() {
     // initialize epsilon, now we assume epsilon is a constant
     // todo add a function to calculate epsilon in each iteration;
     double epsilon = 0.00001;
-    double epsilonPrimal = 0.0001;
+    double epsilonPrimal = 0.001;
     double epsilonDual = 0.1;
     //eps = calc_eps();
     int k = 0;
